@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Panel, PanelHeader } from '@/components/ui/card'
 import { STAGES, STAGE_LABELS, formatValue } from '@/lib/utils/constants'
 import { leafRecords, pipelineValue } from '@/lib/records/pipeline-value'
-import type { ProjectStage } from '@/lib/supabase/types'
+import type { DealStage } from '@/lib/supabase/types'
 
 /**
  * Where the pipeline sits — count and value, by stage.
@@ -51,14 +51,13 @@ export interface StageMixRecord {
  * ⚠ LITERAL STRINGS, NOT `bg-ordinal-${i}`. A Tailwind class assembled at
  * runtime is a class Tailwind never generated (§12).
  */
-const STAGE_FILL: Record<ProjectStage, string> = {
-  pursuit: 'bg-ordinal-1',
-  capture: 'bg-ordinal-2',
-  bid: 'bg-ordinal-3',
-  award: 'bg-ordinal-4',
-  mobilization: 'bg-ordinal-5',
-  execution: 'bg-ordinal-6',
-  closeout: 'bg-ordinal-7',
+const STAGE_FILL: Record<DealStage, string> = {
+  prospecting: 'bg-ordinal-1',
+  in_discussions: 'bg-ordinal-2',
+  due_diligence: 'bg-ordinal-3',
+  contracting: 'bg-ordinal-4',
+  won: 'bg-ordinal-5',
+  lost: 'bg-ordinal-6',
 }
 
 export default function StageMix({ records }: { records: readonly StageMixRecord[] }) {
@@ -99,7 +98,7 @@ export default function StageMix({ records }: { records: readonly StageMixRecord
           {rows.map((r) => (
             <div key={r.stage} className="flex items-center gap-3">
               <dt className="w-24 shrink-0 truncate text-xs text-muted-foreground">
-                {STAGE_LABELS[r.stage as ProjectStage]}
+                {STAGE_LABELS[r.stage as DealStage]}
               </dt>
               {/*
                 The bar is the TRACK plus a fill, so an empty-ish stage still
@@ -116,7 +115,7 @@ export default function StageMix({ records }: { records: readonly StageMixRecord
               */}
               <dd className="h-5 min-w-0 flex-1 rounded-sm bg-muted">
                 <div
-                  className={`h-full rounded-sm ${STAGE_FILL[r.stage as ProjectStage]}`}
+                  className={`h-full rounded-sm ${STAGE_FILL[r.stage as DealStage]}`}
                   style={{ width: `${Math.max((r.count / maxCount) * 100, 3)}%` }}
                 />
               </dd>

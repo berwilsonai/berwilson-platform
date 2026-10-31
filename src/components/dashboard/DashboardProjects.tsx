@@ -3,20 +3,31 @@
 import { useMemo, useState } from 'react'
 import { ChevronDown, FolderOpen, LayoutGrid, GitBranch } from 'lucide-react'
 import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
-import type { Project, ProjectStage } from '@/lib/supabase/types'
+import { phaseLookup, subtreePower } from '@/lib/records/power'
+import type { PhaseRow } from '@/lib/records/power-read'
+import type { Project, DealStage } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
 import { useStoredState } from '@/hooks/use-stored-state'
-import { STAGES, STAGE_LABELS, STAGE_BADGE, STAGE_COLOR } from '@/lib/utils/constants'
+import { STAGES, STAGE_PIPELINE, STAGE_LABELS, STAGE_BADGE, STAGE_COLOR } from '@/lib/utils/constants'
 
 type ViewMode = 'program' | 'stage'
 type Preset = 'all' | 'sales' | 'ops'
 
-// Role-oriented focus presets. Sales lives in the pursuit→bid stages;
-// Operations lives in award→closeout. "All" shows everything.
-const PRESET_STAGES: Record<Preset, ProjectStage[] | null> = {
+/*
+  Role-oriented focus presets.
+
+  ⚠ RE-CUT FOR THE NEW VOCABULARY (10-30), NOT TRANSLATED. The old split was
+  pursuit→bid for Sales and award→closeout for Operations, which worked because
+  the enum's back half described DELIVERY phases. Those four members are gone —
+  delivery is tracked on milestones, not as a pipeline position — so there is no
+  four-stage ops half to map onto. The honest line is now the one the
+  vocabulary already draws: Sales is the live funnel, Operations is work that
+  has been won.
+*/
+const PRESET_STAGES: Record<Preset, DealStage[] | null> = {
   all: null,
-  sales: ['pursuit', 'capture', 'bid'],
-  ops: ['award', 'mobilization', 'execution', 'closeout'],
+  sales: [...STAGE_PIPELINE],
+  ops: ['won'],
 }
 
 const PRESET_LABELS: Record<Preset, string> = {
@@ -37,9 +48,21 @@ interface DashboardProjectsProps {
    * as three unrelated features.
    */
   sortControl?: React.ReactNode
+  /**
+   * Every ramp phase for the projects above, as plain rows.
+   *
+   * ⚠ ROWS, NOT A LOOKUP — a closure cannot cross the server/client boundary.
+   * The roll-up happens here over the whole set, so the dashboard's cards
+   * cannot disagree with /projects' about a program's capacity.
+   */
+  phases?: PhaseRow[]
 }
 
-export default function DashboardProjects({ projects, counts, sortControl }: DashboardProjectsProps) {
+export default function DashboardProjects({ projects, counts, sortControl, phases = [] }: DashboardProjectsProps) {
+  const powerOf = useMemo(() => {
+    const lookup = phaseLookup(phases)
+    return (project: Project) => subtreePower(project, projects, lookup)
+  }, [phases, projects])
   const [view, setView] = useStoredState<ViewMode>('bw.dashboard.view', 'program')
   const [preset, setPreset] = useStoredState<Preset>('bw.dashboard.preset', 'all')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -58,7 +81,7 @@ export default function DashboardProjects({ projects, counts, sortControl }: Das
   const filtered = useMemo(() => {
     if (!allowed) return projects
     const set = new Set(allowed)
-    return projects.filter(p => set.has((p.stage ?? 'pursuit') as ProjectStage))
+    return projects.filter(p => set.has(p.stage))
   }, [projects, allowed])
 
   // Hierarchy (only nest a child when its parent is present in the filtered set)
@@ -81,9 +104,9 @@ export default function DashboardProjects({ projects, counts, sortControl }: Das
   }
 
   const byStage = useMemo(() => {
-    const groups = new Map<ProjectStage, Project[]>()
+    const groups = new Map<DealStage, Project[]>()
     for (const p of filtered) {
-      const stage = (p.stage ?? 'pursuit') as ProjectStage
+      const stage = p.stage
       const arr = groups.get(stage) ?? []
       arr.push(p)
       groups.set(stage, arr)
@@ -154,8 +177,8 @@ export default function DashboardProjects({ projects, counts, sortControl }: Das
       {/* Stage view */}
       {view === 'stage' && filtered.length > 0 && (
         <div className="space-y-5">
-          {STAGES.filter(s => (byStage.get(s as ProjectStage)?.length ?? 0) > 0).map(s => {
-            const stage = s as ProjectStage
+          {STAGES.filter(s => (byStage.get(s as DealStage)?.length ?? 0) > 0).map(s => {
+            const stage = s as DealStage
             const items = byStage.get(stage) ?? []
             return (
               <div key={stage} className="space-y-2.5">
@@ -172,6 +195,7 @@ export default function DashboardProjects({ projects, counts, sortControl }: Das
                       key={p.id}
                       project={p}
                       counts={counts[p.id]}
+                      power={powerOf(p)}
                       parentName={p.parent_project_id ? nameById.get(p.parent_project_id) : undefined}
                     />
                   ))}
@@ -192,7 +216,7 @@ export default function DashboardProjects({ projects, counts, sortControl }: Das
             return (
               <div key={p.id} className="space-y-2">
                 <div className="relative">
-                  <ProjectCard project={p} counts={counts[p.id]} isProgram={isProgram} />
+                  <ProjectCard project={p} counts={counts[p.id]} power={powerOf(p)} isProgram={isProgram} />
                   {isProgram && (
                     <button
                       onClick={() => toggle(p.id)}
@@ -208,7 +232,7 @@ export default function DashboardProjects({ projects, counts, sortControl }: Das
                 {isProgram && !isCollapsed && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-4 border-l-2 border-violet-200 dark:border-violet-800/60 ml-2">
                     {kids.map(c => (
-                      <ProjectCard key={c.id} project={c} counts={counts[c.id]} parentName={p.name} />
+                      <ProjectCard key={c.id} project={c} counts={counts[c.id]} power={powerOf(c)} parentName={p.name} />
                     ))}
                   </div>
                 )}

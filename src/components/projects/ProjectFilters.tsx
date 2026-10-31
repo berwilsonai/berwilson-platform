@@ -3,16 +3,17 @@
 import UrlFacets from '@/components/ui/url-facets'
 import { SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS, STAGES } from '@/lib/utils/stages'
-import type { ProjectSector, ProjectStatus } from '@/lib/supabase/types'
+/*
+  ⚠ IMPORTED, NOT RETYPED. This file kept its own `STATUSES` and
+  `STATUS_LABELS` — a verbatim copy of the pair in `constants.ts`, three files
+  apart — so narrowing the enum on 10-30 had to be done twice and the build
+  only found the second copy because `Record<ProjectStatus, …>` refused the
+  dead keys. A label written inline is a label with no owner (§12).
+*/
+import { STATUSES, STATUS_LABELS } from '@/lib/utils/constants'
+import type { ProjectSector } from '@/lib/supabase/types'
 
-const STATUSES: ProjectStatus[] = ['active', 'on_hold', 'won', 'lost', 'closed']
-const STATUS_LABELS: Record<ProjectStatus, string> = {
-  active: 'Active',
-  on_hold: 'On Hold',
-  won: 'Won',
-  lost: 'Lost',
-  closed: 'Closed',
-}
+
 const SECTORS: ProjectSector[] = ['government', 'infrastructure', 'real_estate', 'prefab', 'institutional']
 
 /**

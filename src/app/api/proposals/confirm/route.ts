@@ -5,6 +5,7 @@ import { embedDocument } from '@/lib/ai/embeddings'
 import { SYSTEM_USER_ID } from '@/lib/system-user'
 
 import { categorizePlayerRole } from '@/lib/contacts/roles'
+import { isDealStage } from '@/lib/utils/constants'
 
 const VALID_ENTITY_TYPES = ['llc', 'corp', 'jv', 'subsidiary', 'trust', 'fund', 'other'] as const
 type EntityType = typeof VALID_ENTITY_TYPES[number]
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
           name: masterPlanName,
           sector: primarySector as 'government' | 'infrastructure' | 'real_estate' | 'prefab' | 'institutional',
           status: 'active',
-          stage: 'pursuit' as const,
+          stage: 'prospecting' as const,
           description: `Master plan / parent program for ${projects_to_create.length} sub-projects`,
           location: projects_to_create[0]?.location || null,
           client_entity: projects_to_create[0]?.client_entity || null,
@@ -160,7 +161,13 @@ export async function POST(request: NextRequest) {
         name: projectFields.name,
         sector: projectFields.sector as 'government' | 'infrastructure' | 'real_estate' | 'prefab' | 'institutional',
         status: 'active',
-        stage: (projectFields.stage || 'pursuit') as 'pursuit' | 'capture' | 'bid' | 'award' | 'mobilization' | 'execution' | 'closeout',
+        // ⚠ NARROWED, NOT CAST. This retyped all seven members of the old
+        // enum as an inline union, so renaming the vocabulary was a type error
+        // here and a silent `22P02` at runtime for anything the wizard sent
+        // that the enum no longer held (§12 — a value outside an enum fails the
+        // WHOLE query, discarding every other field in the same insert).
+        // `isDealStage` is the one narrowing both live in.
+        stage: isDealStage(projectFields.stage) ? projectFields.stage : 'prospecting',
         description: projectFields.description || null,
         estimated_value: projectFields.estimated_value || null,
         contract_type: projectFields.contract_type || null,

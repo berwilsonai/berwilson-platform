@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import CalendarView from '@/components/calendar/CalendarView'
 import IntelSectionTabs from '@/components/intel/IntelSectionTabs'
 import { fetchOpenTasks } from '@/lib/tasks/queries'
+import { STAGE_PIPELINE } from '@/lib/utils/constants'
 
 export const metadata = { title: 'Calendar — Ber Wilson Intelligence' }
 
@@ -37,7 +38,7 @@ export default async function CalendarPage() {
       .from('projects')
       .select('id, name, bid_due_date, stage')
       .in('status', ['active', 'on_hold'])
-      .in('stage', ['pursuit', 'capture', 'bid'])
+      .in('stage', STAGE_PIPELINE)
       .not('bid_due_date', 'is', null)
       .gte('bid_due_date', thirtyDaysAgo)
       .lte('bid_due_date', sixtyDaysOut)

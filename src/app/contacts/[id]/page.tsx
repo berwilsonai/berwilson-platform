@@ -16,7 +16,7 @@ export const metadata = { title: 'Contact — Ber Wilson Intelligence' }
 import { cn } from '@/lib/utils'
 import { SECTOR_BADGE, SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS } from '@/lib/utils/stages'
-import type { ProjectSector, ProjectStage } from '@/lib/supabase/types'
+import type { ProjectSector, DealStage } from '@/lib/supabase/types'
 import ContactTabBar from '@/components/contacts/ContactTabBar'
 import RelationshipNotesEditor from '@/components/contacts/RelationshipNotesEditor'
 import ContactNotesFeed from '@/components/contacts/ContactNotesFeed'
@@ -717,7 +717,7 @@ export default async function ContactDetailPage({ params, searchParams }: PagePr
                           </td>
                           <td className="px-4 py-3 hidden md:table-cell">
                             <span className="text-xs text-muted-foreground">
-                              {STAGE_LABELS[project.stage as ProjectStage]}
+                              {STAGE_LABELS[project.stage as DealStage]}
                             </span>
                           </td>
                           <td className="px-4 py-3">

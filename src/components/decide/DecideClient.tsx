@@ -428,11 +428,49 @@ async function getJson(url: string): Promise<unknown> {
 }
 
 /**
+ * The actions that still stop and ask, and the only ones.
+ *
+ * Richard, 2026-10-30: *"When I do, I want it to be a click (no confirmation)
+ * so I can get through them quickly."*
+ *
+ * ⚠ THE LINE IS REVERSIBILITY, NOT IMPORTANCE. Filing a conversation onto a
+ * deal, making a task, approving a match, setting a document aside and
+ * confirming a field are all one write that a later press undoes — on a queue
+ * worked in batches of seventy, a dialog on each is a second click that
+ * teaches people to stop reading the first one. Creating a project or an
+ * opportunity is different in kind: it writes the record, its contacts, its
+ * tasks, its attachments, and builds a Drive room. There is no single press
+ * that takes that back, so those two keep one confirmation.
+ *
+ * ⚠ AND `setaside` IS NOT HERE DELIBERATELY, even though it removes something
+ * from Ber AI's reach. `excludeDocument` writes a tombstone — the ROW IS THE
+ * TOMBSTONE (§4) — so the file is kept and only its passages go. That is the
+ * single most repeated press in the junk-attachment queue this change exists
+ * to drain; it is also the most reversible thing on the screen.
+ *
+ * Typed `Record<AcceptAction, boolean>`, not a Set, so the build names a new
+ * action that nobody decided about (§12 — the fix that ends the drift is the
+ * TYPE, not the derivation). A new action must be classified, and the honest
+ * default for an unclassified one is not "fire silently".
+ */
+const CONFIRM_BEFORE: Record<AcceptAction, boolean> = {
+  project: true,
+  opportunity: true,
+  merge: false,
+  task: false,
+  approve: false,
+  file: false,
+  confirmfield: false,
+  setaside: false,
+}
+
+/**
  * What each accept says before it happens, and what it says afterwards.
  *
- * Accept confirms once; dismiss does not. The asymmetry is the point — setting
- * something aside is reversible and creates nothing, while accepting writes a
- * record, contacts, tasks and documents, and publishes to Drive.
+ * `ask` is only ever read for an action `CONFIRM_BEFORE` marks true — the rest
+ * never render it. It is kept for all of them anyway, because the sentence is
+ * the clearest statement of what each write actually does and the next person
+ * reclassifying an action will want to read it.
  */
 const ACCEPT_COPY: Record<
   AcceptAction,
@@ -964,6 +1002,55 @@ export default function DecideClient({
   }
 
   /**
+   * A press on any accept button. THE one door.
+   *
+   * ⚠ EVERY CALL SITE GOES THROUGH THIS, which is the point. There were four
+   * places that opened the confirmation — the primary button, the alternate,
+   * the record picker and the `a` keyboard shortcut — and four places is
+   * exactly where a policy written as an `if` at each one drifts (§12). The
+   * decision lives in `CONFIRM_BEFORE` and nothing else may read it.
+   *
+   * A confirming action opens the dialog as before. Everything else fires
+   * immediately: `accept` is already optimistic, so the row leaves the list on
+   * the press and comes back if the write fails.
+   */
+  function requestAccept(
+    item: Dated,
+    action: AcceptAction,
+    name: string | null,
+    target?: PickableRecord
+  ) {
+    if (CONFIRM_BEFORE[action]) {
+      setAsking({ item, action, name, target })
+      return
+    }
+    void accept(item, action, name, target)
+  }
+
+  /*
+    The same function, reachable from the keydown listener without being one of
+    its dependencies.
+
+    ⚠ A REF RATHER THAN A DEPENDENCY, AND BOTH ALTERNATIVES WERE WORSE. Listing
+    `requestAccept` in the effect's deps re-registers the window listener on
+    every render, because it is a fresh closure each time — correct, and it
+    earned a lint warning saying so. Omitting it captures a STALE closure, which
+    on this queue means `a` acting on the row the cursor was on two renders ago.
+    Wrapping it in `useCallback` only moves the problem: it closes over `accept`,
+    which closes over `performAccept` and three setters, so the whole chain would
+    have to become callbacks inside an 1,800-line component.
+
+    The ref is updated in an effect, never during render — an assignment during
+    render is impure, which is the other rule the linter here enforces (§9
+    names `react-hooks/purity` as one of the three standing exemptions, and
+    this is how not to add a fourth).
+  */
+  const requestAcceptRef = useRef(requestAccept)
+  useEffect(() => {
+    requestAcceptRef.current = requestAccept
+  })
+
+  /**
    * Ask Ber AI to look again at where every staged conversation belongs.
    *
    * ⚠ IT CHANGES A RECOMMENDATION, NOT A RECORD. The pass behind this re-reads
@@ -1128,14 +1215,24 @@ export default function DecideClient({
         case 'a':
           if (!cursorItem?.accept) return
           e.preventDefault()
-          // Through the confirmation, never straight to the write: a mistyped
-          // key must not create a project.
-          //
-          // ⚠ ALWAYS THE PRIMARY ACTION. The alternate is deliberately not
-          // bound to a key — one keystroke that does one of two different
-          // things depending on the row is how a task lands where a record was
-          // meant, and the shortcut overlay could not state it honestly.
-          setAsking({ item: cursorItem, action: cursorItem.accept, name: cursorItem.acceptName ?? null })
+          /*
+            ⚠ THROUGH `requestAccept`, WHICH IS WHAT KEEPS THE OLD GUARANTEE
+            HERE. This read "through the confirmation, never straight to the
+            write: a mistyped key must not create a project" — true while every
+            action confirmed, and no longer a description of this line now that
+            most of them do not (10-30). The guarantee survives because the
+            policy moved rather than loosened: `CONFIRM_BEFORE` still marks
+            project and opportunity, so a mistyped `a` on one of those rows
+            opens the dialog exactly as before. On a reversible row it now
+            fires, which is the point — the queue is worked with j/k/a and a
+            dialog between every press was the thing being asked about.
+
+            ⚠ ALWAYS THE PRIMARY ACTION. The alternate is deliberately not
+            bound to a key — one keystroke that does one of two different
+            things depending on the row is how a task lands where a record was
+            meant, and the shortcut overlay could not state it honestly.
+          */
+          requestAcceptRef.current(cursorItem, cursorItem.accept, cursorItem.acceptName ?? null)
           break
         case 'Enter':
           if (!cursorItem) return
@@ -1153,6 +1250,9 @@ export default function DecideClient({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
+    // `requestAcceptRef` is a ref, so it is deliberately not a dependency —
+    // see the note on its declaration for why that is the right call here and
+    // not the stale-closure bug it usually is.
   }, [visible, cursorIdx, cursorItem, bulk, asking, askingBatch, picking, pick, router])
 
   // Keep the cursor row on screen. `block: 'nearest'` scrolls the minimum —
@@ -1561,7 +1661,7 @@ export default function DecideClient({
                     variant="soft"
                     size="xs"
                     type="button"
-                    onClick={() => setAsking({ item, action: item.accept!, name: item.acceptName ?? null })}
+                    onClick={() => requestAccept(item, item.accept!, item.acceptName ?? null)}
                     disabled={pending === `${item.kind}:${item.id}`}
                     title={acceptVerb(item)}
                     className="h-[2.75rem] sm:h-7 px-3.5 sm:px-2 text-sm"
@@ -1602,11 +1702,7 @@ export default function DecideClient({
                   <button
                     type="button"
                     onClick={() =>
-                      setAsking({
-                        item,
-                        action: item.altAccept!.action,
-                        name: item.altAccept!.name,
-                      })
+                      requestAccept(item, item.altAccept!.action, item.altAccept!.name)
                     }
                     disabled={pending === `${item.kind}:${item.id}`}
                     title={`${acceptVerb({ accept: item.altAccept.action, acceptName: item.altAccept.name })} — ${item.altAccept.count} follow-up${item.altAccept.count === 1 ? '' : 's'}, and nothing else is created`}
@@ -1740,7 +1836,7 @@ export default function DecideClient({
                       onClick={() => {
                         const record = picking.record!
                         setPicking(null)
-                        setAsking({ item: picking.item, action, name, target: record })
+                        requestAccept(picking.item, action, name, record)
                       }}
                       className="w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
                     >

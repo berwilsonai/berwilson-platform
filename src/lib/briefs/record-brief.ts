@@ -41,6 +41,10 @@ import { matchChunks } from '@/lib/ai/match-chunks'
 import { generateEmbedding } from '@/lib/ai/embeddings'
 import { dedupeByContent, normalizeForDedupe } from '@/lib/ai/dedupe'
 import { sweepDb } from '@/lib/email-sweep/db'
+import {
+  STAGE_LABELS, STATUS_LABELS, SECTOR_LABELS, enumLabel, winBandLabel,
+} from '@/lib/utils/constants'
+import { oppStage } from '@/lib/utils/opportunities'
 
 type Admin = SupabaseClient<Database>
 
@@ -472,9 +476,19 @@ export async function assembleProjectBrief(
     if (value === null || value === undefined || value === '') return
     facts.push(`- ${label}: ${String(value)}`)
   }
-  fact('Sector', project.sector)
-  fact('Stage', project.stage)
-  fact('Status', project.status)
+  /*
+    ⚠ LABELS, NOT STORED TOKENS — AND THE MODEL REPEATS WHATEVER IT IS HANDED.
+    §12 is about never printing a stored enum at a READER, and a brief is read
+    aloud in the car: fed `in_discussions` the model wrote the subtitle
+    *"infrastructure · in_discussions · $12B estimated"* verbatim, measured on
+    the first brief generated under the new prompt. It is the same failure as
+    §12's `GridEdge (opportunity)` note — display formatting handed to a model
+    comes back in the answer — and the fix is the same, which is to hand it the
+    words a person uses.
+  */
+  fact('Sector', enumLabel(project.sector, SECTOR_LABELS))
+  fact('Stage', STAGE_LABELS[project.stage])
+  fact('Status', project.status ? STATUS_LABELS[project.status] : null)
   fact('Estimated value', project.estimated_value)
   fact('Location', project.location)
   fact('Client', project.client_entity)
@@ -482,7 +496,10 @@ export async function assembleProjectBrief(
   fact('Delivery method', project.delivery_method)
   fact('Solicitation number', project.solicitation_number)
   fact('Bid due', project.bid_due_date)
-  fact('Win probability', project.win_probability)
+  // ⚠ THE BAND, not the stored percentage (10-30). A brief that says "80"
+  // invents a precision nobody asserted — the column holds one of three
+  // hand-picked bands. See the win-band block in constants.ts.
+  fact('Win probability', winBandLabel(project.win_probability))
   fact('Award date', project.award_date)
   fact('NTP date', project.ntp_date)
   fact('Substantial completion', project.substantial_completion_date)
@@ -688,7 +705,11 @@ export async function assembleOpportunityBrief(
   }
   fact('Kind', 'Strategic opportunity (not a construction project)')
   fact('Type', opp.opp_type)
-  fact('Status', opp.status)
+  // ⚠ `stage` IS THE PIPELINE AS OF 10-30, and `status` only says whether the
+  // deal is parked. Handing the model `status` alone used to be the whole
+  // position; now it would say "Active" and nothing about how far along it is.
+  fact('Stage', STAGE_LABELS[oppStage(opp.stage)])
+  fact('Status', opp.status === 'on_hold' ? 'On hold' : 'Active')
   fact('Priority', opp.priority)
   fact('Sector', opp.sector)
   fact('Location', opp.location)

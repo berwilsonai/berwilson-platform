@@ -10,7 +10,7 @@ import TagInput from '@/components/contacts/TagInput'
 import { cn } from '@/lib/utils'
 import { createProject, updateProject } from '@/app/projects/actions'
 import type { ProjectFormState } from '@/app/projects/actions'
-import type { Project, ProjectSector, ProjectStatus, ProjectStage } from '@/lib/supabase/types'
+import type { Project, ProjectSector, DealStage } from '@/lib/supabase/types'
 import { SECTOR_LABELS } from '@/lib/utils/sectors'
 import { STAGE_LABELS, STAGES } from '@/lib/utils/stages'
 import {
@@ -18,18 +18,13 @@ import {
   FEDERAL_STANDARD_LABELS,
   FEDERAL_STANDARD_DESCRIPTIONS,
   type FederalStandard,
+  // ⚠ The ONE copy of the status vocabulary — see ProjectFilters.
+  STATUSES, STATUS_LABELS,
 } from '@/lib/utils/constants'
 import { FIELD_CONTROL_CLASS, FIELD_TEXTAREA_CLASS, FIELD_LABEL_CLASS } from '@/lib/utils/field-classes'
 
 const SECTORS: ProjectSector[] = ['government', 'infrastructure', 'real_estate', 'prefab', 'institutional']
-const STATUSES: ProjectStatus[] = ['active', 'on_hold', 'won', 'lost', 'closed']
-const STATUS_LABELS: Record<ProjectStatus, string> = {
-  active: 'Active',
-  on_hold: 'On Hold',
-  won: 'Won',
-  lost: 'Lost',
-  closed: 'Closed',
-}
+
 const CONTRACT_TYPES = ['FFP', 'CPFF', 'T&M', 'GMP', 'Lump Sum', 'Cost Plus']
 const DELIVERY_METHODS = ['Design-Build', 'Design-Bid-Build', 'CMAR']
 
@@ -216,7 +211,7 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
               <option value="">Not set</option>
               {STAGES.map((s) => (
                 <option key={s} value={s}>
-                  {STAGE_LABELS[s as ProjectStage]}
+                  {STAGE_LABELS[s as DealStage]}
                 </option>
               ))}
             </select>

@@ -6,23 +6,25 @@ import { getViewer, canAccessOpportunity } from '@/lib/auth/viewer'
 import { cn } from '@/lib/utils'
 import {
   oppType,
-  oppStatus,
+  oppStage,
   oppPriority,
-  isClosedStatus,
+  isClosedStage,
   OPPORTUNITY_TYPE_LABELS,
   OPPORTUNITY_TYPE_BADGE,
   OPPORTUNITY_PRIORITY_LABELS,
   OPPORTUNITY_PRIORITY_BADGE,
   OPPORTUNITY_PIPELINE,
-  OPPORTUNITY_STATUS_INDEX,
-  OPPORTUNITY_STATUS_LABELS,
+  OPPORTUNITY_STAGE_INDEX,
+  OPPORTUNITY_STAGE_LABELS,
 } from '@/lib/utils/opportunities'
-import OpportunityStatusControl from '@/components/opportunities/OpportunityStatusControl'
+import OpportunityStageControl from '@/components/opportunities/OpportunityStageControl'
 import GenerateBriefButton from '@/components/projects/GenerateBriefButton'
 import RecordDeleteAndLeave from '@/components/shared/RecordDeleteAndLeave'
 import RecordTabBar, { type TabKey } from '@/components/records/RecordTabBar'
 import RecordLogMenu from '@/components/records/RecordLogMenu'
 import RecordPager from '@/components/records/RecordPager'
+import { PowerFigure } from '@/components/records/PowerFigure'
+import { readRecordPower } from '@/lib/records/power-read'
 import { chipTone } from '@/lib/ui/tone'
 import TrackVisit from '@/components/shared/TrackVisit'
 import { OPPORTUNITY_TABS } from '@/components/records/tabs'
@@ -47,7 +49,7 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
 
   const { data: opportunity } = await supabase
     .from('opportunities')
-    .select('id, name, target_name, opp_type, status, priority, data_room_template')
+    .select('id, name, target_name, opp_type, stage, status, priority, data_room_template')
     .eq('id', id)
     .single()
 
@@ -57,6 +59,10 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
   // 404 rather than 403: don't confirm the record exists.
   const viewer = await getViewer()
   if (viewer && !viewer.isAdmin && !canAccessOpportunity(viewer, id)) notFound()
+
+  // The ramp-up total for the header. An opportunity is always a leaf —
+  // `opportunities` has no parent column — so this is its own schedule.
+  const power = await readRecordPower('opportunity', id)
 
   // Which tabs actually hold anything — head counts on indexed columns, run in
   // parallel, so the rows are never fetched.
@@ -88,11 +94,11 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
   }
 
   const t = oppType(opportunity.opp_type)
-  const s = oppStatus(opportunity.status)
+  const s = oppStage(opportunity.stage)
   const p = oppPriority(opportunity.priority)
-  const closed = isClosedStatus(opportunity.status)
-  const onHold = s === 'on_hold'
-  const currentIndex = OPPORTUNITY_STATUS_INDEX[s]
+  const closed = isClosedStage(opportunity.stage)
+  const onHold = opportunity.status === 'on_hold'
+  const currentIndex = OPPORTUNITY_STAGE_INDEX[s]
 
   return (
     <div className="space-y-0">
@@ -117,6 +123,10 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
             </div>
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-semibold leading-tight truncate">{opportunity.name}</h1>
+              {/* The key metric, beside the name — the same figure, the same
+                  renderer and the same rules as a project's (Richard, 10-30).
+                  Renders nothing where there is no schedule. */}
+              <PowerFigure total={power} className="shrink-0" />
               <div className="shrink-0">
                 <RecordPager kind="opportunity" currentId={id} />
               </div>
@@ -136,7 +146,7 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
               canLogMeeting={viewer?.isAdmin ?? false}
             />
             <GenerateBriefButton recordId={id} recordName={opportunity.name} kind="opportunity" />
-            <OpportunityStatusControl opportunityId={id} status={s} />
+            <OpportunityStageControl opportunityId={id} stage={s} />
             <Link
               href={`/opportunities/${id}/edit`}
               className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
@@ -173,7 +183,7 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
                     i === currentIndex ? 'text-foreground font-medium' : 'text-muted-foreground'
                   )}
                 >
-                  {OPPORTUNITY_STATUS_LABELS[stage]}
+                  {OPPORTUNITY_STAGE_LABELS[stage]}
                 </span>
               </div>
             ))}
@@ -187,9 +197,9 @@ export default async function OpportunityDetailLayout({ children, params }: Layo
         {closed && (
           <div className={cn(
             'rounded-md px-3 py-2 text-sm font-medium ring-1 ring-inset',
-            chipTone(opportunity.status === 'closed_won' ? 'positive' : 'critical')
+            chipTone(opportunity.stage === 'won' ? 'positive' : 'critical')
           )}>
-            {OPPORTUNITY_STATUS_LABELS[s]}
+            {OPPORTUNITY_STAGE_LABELS[s]}
           </div>
         )}
       </div>

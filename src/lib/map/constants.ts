@@ -33,8 +33,8 @@ export function isMapIconType(v: unknown): v is MapIconType {
   return typeof v === 'string' && (MAP_ICON_TYPES as readonly string[]).includes(v)
 }
 
-// Pipeline vs awarded work: pre-award stages read as pursuit; award+ is won.
-// Drives the map's phase filter and the solid-vs-outlined marker styles.
+// Pipeline vs awarded work. Drives the map's phase filter and the
+// solid-vs-outlined marker styles.
 export type MapPhase = 'awarded' | 'pipeline'
 
 export const MAP_PHASES: MapPhase[] = ['awarded', 'pipeline']
@@ -44,13 +44,23 @@ export const MAP_PHASE_LABELS: Record<MapPhase, string> = {
   pipeline: 'Pipeline',
 }
 
+/**
+ * Has this deal been won, or is it still being chased?
+ *
+ * ⚠ IT TESTED FOUR STAGES THAT NO LONGER EXIST (fixed 10-30). The old
+ * vocabulary's post-award half was award / mobilization / execution /
+ * closeout, and this compared against all four as plain strings — so after
+ * the rename every single project answered `pipeline`, the map's Awarded
+ * filter returned nothing, and every marker drew outlined. §12: a green
+ * typecheck is not coverage; this takes `string`, so nothing could see it.
+ *
+ * `won` is the whole post-award half now. `lost` is deliberately NOT awarded
+ * and not pipeline either — it is neither, and it falls to `pipeline` here
+ * because the map's filter is binary. A lost deal on the Awarded layer would
+ * be the worse error of the two.
+ */
 export function projectPhase(stage: string | null | undefined): MapPhase {
-  return stage === 'award' ||
-    stage === 'mobilization' ||
-    stage === 'execution' ||
-    stage === 'closeout'
-    ? 'awarded'
-    : 'pipeline'
+  return stage === 'won' ? 'awarded' : 'pipeline'
 }
 
 // Utah default camera; US-wide basemap underneath for the nationwide future.

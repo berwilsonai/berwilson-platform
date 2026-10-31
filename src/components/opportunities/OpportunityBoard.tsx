@@ -21,44 +21,55 @@ import { cn } from '@/lib/utils'
 import type { Opportunity } from '@/lib/supabase/types'
 import { formatValue } from '@/lib/utils/constants'
 import {
-  oppStatus,
-  type OpportunityStatus,
-  OPPORTUNITY_STATUSES,
-  OPPORTUNITY_STATUS_LABELS,
-  OPPORTUNITY_STATUS_BADGE,
+  oppStage,
+  OPPORTUNITY_STAGES,
+  OPPORTUNITY_STAGE_LABELS,
+  OPPORTUNITY_STAGE_BADGE,
+  STAGE_CLOSED,
 } from '@/lib/utils/opportunities'
 import { pipelineTotal, coverageNote, leafRecords } from '@/lib/records/pipeline-value'
+import { powerTotal, type PowerPhase, type PowerTotal } from '@/lib/records/power'
+import { PowerFigure } from '@/components/records/PowerFigure'
 import { useBoardDnd, BoardLiveRegion, BoardHint, type Lane, type BoardDnd } from '@/components/ui/board'
 import { OpportunityCard } from './OpportunityCards'
+import type { DealStage } from '@/lib/supabase/types'
 
 /**
  * The terminal states. Shown — a funnel with a missing rung misleads (the same
  * argument `/projects` makes for keeping an empty stage visible) — but muted,
  * because they are where deals go to stop rather than somewhere to work.
  */
-const TERMINAL: ReadonlySet<OpportunityStatus> = new Set<OpportunityStatus>([
-  'on_hold',
-  'closed_won',
-  'closed_passed',
-])
+/*
+ * ⚠ TWO MEMBERS NOW, AND `on_hold` IS NOT ONE OF THEM. This set held
+ * on_hold / closed_won / closed_passed, from the days when `status` carried
+ * both the pipeline AND whether the deal was parked. Parking moved to its own
+ * column on 10-30, so a parked deal keeps its real pipeline lane instead of
+ * being swept into a terminal column — which is what you want: an on-hold deal
+ * in Due Diligence is still a Due Diligence deal, and hiding that was how the
+ * board under-reported the live funnel.
+ */
+const TERMINAL: ReadonlySet<DealStage> = new Set<DealStage>(STAGE_CLOSED)
 
 export default function OpportunityBoard({
   opportunities,
   canDelete = false,
   onDeleted,
   onMoved,
+  powerOf,
 }: {
   opportunities: Opportunity[]
   canDelete?: boolean
   onDeleted?: (id: string) => void
   /** Persists a status change. Throwing rolls the card back. */
-  onMoved: (id: string, status: OpportunityStatus) => Promise<void>
+  onMoved: (id: string, status: DealStage) => Promise<void>
+  /** One record's ramp phases, by id. Absent = no schedules to show. */
+  powerOf?: (recordId: string) => readonly PowerPhase[]
 }) {
   const lanes: Lane[] = useMemo(
     () =>
-      OPPORTUNITY_STATUSES.map((st) => ({
+      OPPORTUNITY_STAGES.map((st) => ({
         id: st,
-        label: OPPORTUNITY_STATUS_LABELS[st],
+        label: OPPORTUNITY_STAGE_LABELS[st],
       })),
     []
   )
@@ -66,8 +77,8 @@ export default function OpportunityBoard({
   const dnd = useBoardDnd<Opportunity>({
     lanes,
     items: opportunities,
-    laneOf: (o) => oppStatus(o.status),
-    setLane: (o, laneId) => ({ ...o, status: laneId as OpportunityStatus }),
+    laneOf: (o) => oppStage(o.stage),
+    setLane: (o, laneId) => ({ ...o, status: laneId as DealStage }),
     titleOf: (o) => o.name,
     /*
       ⚠ `opportunities` carries no order column, exactly as `projects` does
@@ -76,14 +87,14 @@ export default function OpportunityBoard({
     */
     reorderable: false,
     onMove: async (move) => {
-      await onMoved(move.itemId, move.toLaneId as OpportunityStatus)
+      await onMoved(move.itemId, move.toLaneId as DealStage)
     },
   })
 
   const byStatus = useMemo(() => {
-    const groups = new Map<OpportunityStatus, Opportunity[]>()
+    const groups = new Map<DealStage, Opportunity[]>()
     for (const o of dnd.preview) {
-      const st = oppStatus(o.status)
+      const st = oppStage(o.stage)
       const arr = groups.get(st) ?? []
       arr.push(o)
       groups.set(st, arr)
@@ -128,13 +139,19 @@ export default function OpportunityBoard({
       )}
 
       <div className="flex gap-3 overflow-x-auto pb-4 -mx-1 px-1">
-        {OPPORTUNITY_STATUSES.map((st) => {
+        {OPPORTUNITY_STAGES.map((st) => {
           const items = byStatus.get(st) ?? []
           const empty = items.length === 0
           const terminal = TERMINAL.has(st)
           const colItems = items.filter((o) => leafIds.has(o.id))
           const total = pipelineTotal(colItems)
           const note = coverageNote(total)
+          // The stage's capacity, on the same leaf-filtered set the money
+          // total uses — so the two aggregates above a column describe the
+          // same deals.
+          const power = powerOf
+            ? powerTotal(colItems.flatMap((o) => [...powerOf(o.id)]))
+            : null
 
           return (
             <BoardColumn
@@ -145,6 +162,8 @@ export default function OpportunityBoard({
               terminal={terminal}
               total={total}
               note={note}
+              power={power}
+              powerOf={powerOf}
               dnd={dnd}
               canDelete={canDelete}
               onDeleted={onDeleted}
@@ -165,16 +184,22 @@ function BoardColumn({
   terminal,
   total,
   note,
+  power,
+  powerOf,
   dnd,
   canDelete,
   onDeleted,
 }: {
-  status: OpportunityStatus
+  status: DealStage
   items: Opportunity[]
   empty: boolean
   terminal: boolean
   total: ReturnType<typeof pipelineTotal>
   note: string | null
+  /** The stage's total capacity, or null when nothing here is scheduled. */
+  power: PowerTotal | null
+  /** One record's phases, by id — handed to each card. */
+  powerOf?: (recordId: string) => readonly PowerPhase[]
   dnd: BoardDnd<Opportunity>
   canDelete?: boolean
   onDeleted?: (id: string) => void
@@ -210,7 +235,7 @@ function BoardColumn({
               terminal ? 'text-muted-foreground' : 'text-foreground'
             )}
           >
-            {OPPORTUNITY_STATUS_LABELS[status]}
+            {OPPORTUNITY_STAGE_LABELS[status]}
           </h2>
         </div>
       ) : (
@@ -229,13 +254,13 @@ function BoardColumn({
               terminal ? 'text-muted-foreground' : 'text-foreground'
             )}
           >
-            {OPPORTUNITY_STATUS_LABELS[status]}
+            {OPPORTUNITY_STAGE_LABELS[status]}
           </h2>
           {!empty && (
             <span
               className={cn(
                 'ml-auto inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-                OPPORTUNITY_STATUS_BADGE[status]
+                OPPORTUNITY_STAGE_BADGE[status]
               )}
             >
               {items.length}
@@ -254,6 +279,15 @@ function BoardColumn({
           and let the cards have the room (§12: omit the row, or name the
           absence in words — never both, and never on every row).
         */}
+        {/* ⚠ CAPACITY FIRST, AND SILENT WHEN ABSENT — the same rule the
+            money line below already follows, and for the same measured
+            reason: a figure nobody has entered must not become the most
+            repeated element on the board. */}
+        {!empty && power?.megawatts != null && (
+          <div className="mt-1.5 text-xs">
+            <PowerFigure total={power} />
+          </div>
+        )}
         {!empty && total.estimated > 0 && (
           <div className="mt-1.5 text-xs">
             <span
@@ -275,6 +309,7 @@ function BoardColumn({
       >
         {items.map((opp, i) => (
           <OpportunityCard
+            powerOf={powerOf ? (id) => powerTotal(powerOf(id)) : undefined}
             key={opp.id}
             opp={opp}
             compact

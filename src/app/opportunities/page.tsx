@@ -6,20 +6,21 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewer } from '@/lib/auth/viewer'
 import {
   OPPORTUNITY_TYPES,
-  OPPORTUNITY_STATUSES,
+  OPPORTUNITY_STAGES,
   type OpportunityType,
-  type OpportunityStatus,
 } from '@/lib/utils/opportunities'
 import EmptyState from '@/components/shared/EmptyState'
 import OpportunityFilters from '@/components/opportunities/OpportunityFilters'
 import SavedViews from '@/components/ui/saved-views'
 import { listSavedViews } from '@/lib/views/saved'
 import OpportunitiesClient from '@/components/opportunities/OpportunitiesClient'
+import type { DealStage } from '@/lib/supabase/types'
+import { readPhaseRows } from '@/lib/records/power-read'
 
 export const metadata = { title: 'Opportunities — Ber Wilson Intelligence' }
 
 interface PageProps {
-  searchParams: Promise<{ type?: string; status?: string }>
+  searchParams: Promise<{ type?: string; stage?: string }>
 }
 
 export default async function OpportunitiesPage({ searchParams }: PageProps) {
@@ -27,8 +28,8 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
   const type = OPPORTUNITY_TYPES.includes(params.type as OpportunityType)
     ? (params.type as OpportunityType)
     : ''
-  const status = OPPORTUNITY_STATUSES.includes(params.status as OpportunityStatus)
-    ? (params.status as OpportunityStatus)
+  const stage = OPPORTUNITY_STAGES.includes(params.stage as DealStage)
+    ? (params.stage as DealStage)
     : ''
 
   const supabase = createAdminClient()
@@ -39,7 +40,7 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
     .order('updated_at', { ascending: false })
 
   if (type) query = query.eq('opp_type', type)
-  if (status) query = query.eq('status', status)
+  if (stage) query = query.eq('stage', stage)
 
   const { data, error } = await query
 
@@ -54,8 +55,12 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
     ? data
     : (data ?? []).filter((o) => viewer!.grantedOpportunityIds.includes(o.id))
 
+  // The ramp schedules for the opportunities on screen. Read after the access
+  // filter above, so a record this viewer may not see contributes nothing.
+  const phaseRows = await readPhaseRows((opportunities ?? []).map((o) => o.id))
+
   const count = opportunities?.length ?? 0
-  const hasFilters = type || status
+  const hasFilters = type || stage
 
   // Named filter sets for this page — shared rows, and the chip navigates
   // to a URL carrying the whole query (see `saved-views.tsx`).
@@ -88,7 +93,7 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
       >
         <div className="flex flex-wrap items-center gap-3">
           <Suspense>
-            <OpportunityFilters type={type} status={status} />
+            <OpportunityFilters type={type} stage={stage} />
           </Suspense>
           {count > 0 && (
             <span className="tnum text-xs text-muted-foreground">
@@ -125,7 +130,11 @@ export default async function OpportunitiesPage({ searchParams }: PageProps) {
           }
         />
       ) : (
-        <OpportunitiesClient opportunities={opportunities ?? []} canDelete={isAdmin} />
+        <OpportunitiesClient
+          opportunities={opportunities ?? []}
+          canDelete={isAdmin}
+          phases={phaseRows}
+        />
       )}
     </div>
   )

@@ -13,7 +13,7 @@ import type {
   ComplianceItem,
   ActivityLog,
   ReviewQueueRow,
-  ProjectStage,
+  DealStage,
   DdSeverity,
 } from '@/lib/supabase/types'
 
@@ -188,7 +188,7 @@ export type ProjectSummary = Pick<
 }
 
 export type StageProgress = {
-  stage: ProjectStage
+  stage: DealStage
   label: string
   completed: boolean
   target_date: string | null

@@ -7,7 +7,7 @@
 import type {
   ProjectSector,
   ProjectStatus,
-  ProjectStage,
+  DealStage,
   DdSeverity,
   EntityType,
   ComplianceStatus,
@@ -69,80 +69,163 @@ export const SECTOR_BADGE: Record<ProjectSector, string> = {
 
 // ─── Statuses ────────────────────────────────────────────────────────────────
 
-export const STATUSES: ProjectStatus[] = [
-  'active', 'on_hold', 'won', 'lost', 'closed',
-]
+/*
+  ⚠ A PARKING FLAG, NOT AN OUTCOME (narrowed 2026-10-30).
+
+  This held active / on_hold / won / lost / closed. Three of those are outcomes,
+  and `stage` now owns outcomes — so "did we win it?" had two homes that could
+  disagree, with nothing stopping a row reading `stage='won', status='active'`.
+  Measured before narrowing: 20 active, 3 on_hold, and ZERO rows in won, lost or
+  closed, so the three members were never the answer to anything.
+
+  What is left is the one question `stage` cannot answer: is this deal being
+  worked right now, or parked? A parked deal keeps its pipeline position.
+*/
+
+export const STATUSES: ProjectStatus[] = ['active', 'on_hold']
 
 export const STATUS_LABELS: Record<ProjectStatus, string> = {
   active: 'Active',
   on_hold: 'On Hold',
-  won: 'Won',
-  lost: 'Lost',
-  closed: 'Closed',
 }
 
 export const STATUS_BADGE: Record<ProjectStatus, string> = {
   active: chipTone('positive'),
   on_hold: chipTone('caution'),
-  won: chipTone('info'),
-  lost: chipTone('critical'),
-  closed: chipTone('neutral'),
 }
 
 // ─── Stages ──────────────────────────────────────────────────────────────────
 
-export const STAGES: ProjectStage[] = [
-  'pursuit', 'capture', 'bid', 'award', 'mobilization', 'execution', 'closeout',
+/*
+  THE PIPELINE, AND THE ONLY VOCABULARY FOR IT (Richard, 2026-10-30):
+  *"For stages lets put Prospecting, In Discussions, Due Diligence,
+  Contracting, Won, Lost"*.
+
+  ⚠ ONE LIST FOR BOTH BOARDS. `projects` carried a seven-member
+  defence-contracting lifecycle (pursuit → capture → bid → award →
+  mobilization → execution → closeout) of which four members had never been
+  used by a single row, while `opportunities` carried nine statuses of its own.
+  The back half of the project list described DELIVERY, which is what
+  milestones are for — not a position in a pipeline. Both tables now hold a
+  `stage` column on `deal_stage` and read these same maps.
+
+  ⚠ STAGE OWNS THE OUTCOME. `Won` and `Lost` live here and nowhere else;
+  `status` is a parking flag (Active / On Hold) and says nothing about whether
+  a deal was won. Two fields answering "did we get it?" is the failure §12 calls
+  one-quantity-one-definition, and before 10-30 `project_status` had won/lost/
+  closed members sitting right beside these.
+
+  Every map below is `Record<DealStage, …>` on purpose — the TYPE is what ends
+  the drift, not the derivation (§12). Adding a member to the enum breaks the
+  build in each of these five places until it is given a label, an order, a
+  chip, a bar colour and a card border.
+*/
+
+export const STAGES: DealStage[] = [
+  'prospecting', 'in_discussions', 'due_diligence', 'contracting', 'won', 'lost',
 ]
 
-export const STAGE_LABELS: Record<ProjectStage, string> = {
-  pursuit: 'Pursuit',
-  capture: 'Capture',
-  bid: 'Bid',
-  award: 'Award',
-  mobilization: 'Mobilization',
-  execution: 'Execution',
-  closeout: 'Closeout',
+/**
+ * The stages a LIVE deal can sit in — the board's lanes.
+ *
+ * ⚠ Won and Lost are outcomes, not places work waits. A board that lanes them
+ * accumulates every deal the company has ever closed in two columns on the
+ * right, which is a filing cabinet rather than a pipeline. They stay in
+ * `STAGES` (a deal can be moved there, and the chip must render) and out of
+ * the default lanes.
+ */
+export const STAGE_PIPELINE: DealStage[] = [
+  'prospecting', 'in_discussions', 'due_diligence', 'contracting',
+]
+
+/** The two terminal stages — a deal here is decided, either way. */
+export const STAGE_CLOSED: DealStage[] = ['won', 'lost']
+
+export const STAGE_LABELS: Record<DealStage, string> = {
+  prospecting: 'Prospecting',
+  in_discussions: 'In Discussions',
+  due_diligence: 'Due Diligence',
+  contracting: 'Contracting',
+  won: 'Won',
+  lost: 'Lost',
 }
 
-export const STAGE_INDEX: Record<ProjectStage, number> = {
-  pursuit: 0,
-  capture: 1,
-  bid: 2,
-  award: 3,
-  mobilization: 4,
-  execution: 5,
-  closeout: 6,
+export const STAGE_INDEX: Record<DealStage, number> = {
+  prospecting: 0,
+  in_discussions: 1,
+  due_diligence: 2,
+  contracting: 3,
+  won: 4,
+  lost: 5,
 }
 
-export const STAGE_BADGE: Record<ProjectStage, string> = {
-  pursuit: chipTone('neutral'),
-  capture: chipTone('violet'),
-  bid: chipTone('caution'),
-  award: chipTone('info'),
-  mobilization: chipTone('cyan'),
-  execution: chipTone('positive'),
-  closeout: chipTone('indigo'),
+export const STAGE_BADGE: Record<DealStage, string> = {
+  prospecting: chipTone('neutral'),
+  in_discussions: chipTone('cyan'),
+  due_diligence: chipTone('caution'),
+  contracting: chipTone('violet'),
+  won: chipTone('positive'),
+  lost: chipTone('critical'),
 }
 
-export const STAGE_COLOR: Record<ProjectStage, string> = {
-  pursuit: 'bg-muted-foreground/60',
-  capture: 'bg-violet-500',
-  bid: 'bg-amber-500',
-  award: 'bg-blue-500',
-  mobilization: 'bg-cyan-500',
-  execution: 'bg-emerald-500',
-  closeout: 'bg-indigo-500',
+export const STAGE_COLOR: Record<DealStage, string> = {
+  prospecting: 'bg-muted-foreground/60',
+  in_discussions: 'bg-cyan-500',
+  due_diligence: 'bg-amber-500',
+  contracting: 'bg-violet-500',
+  won: 'bg-emerald-500',
+  lost: 'bg-red-500',
 }
 
-export const STAGE_BORDER: Record<ProjectStage, string> = {
-  pursuit: 'border-l-border [--card-glow-color:oklch(0.60_0_0)]',
-  capture: 'border-l-violet-400 [--card-glow-color:oklch(0.55_0.18_290)]',
-  bid: 'border-l-amber-400 [--card-glow-color:oklch(0.70_0.12_85)]',
-  award: 'border-l-blue-400 [--card-glow-color:oklch(0.55_0.15_260)]',
-  mobilization: 'border-l-cyan-400 [--card-glow-color:oklch(0.60_0.12_200)]',
-  execution: 'border-l-emerald-400 [--card-glow-color:oklch(0.55_0.15_145)]',
-  closeout: 'border-l-indigo-400 [--card-glow-color:oklch(0.50_0.15_275)]',
+export const STAGE_BORDER: Record<DealStage, string> = {
+  prospecting: 'border-l-border [--card-glow-color:oklch(0.60_0_0)]',
+  in_discussions: 'border-l-cyan-400 [--card-glow-color:oklch(0.60_0.12_200)]',
+  due_diligence: 'border-l-amber-400 [--card-glow-color:oklch(0.70_0.12_85)]',
+  contracting: 'border-l-violet-400 [--card-glow-color:oklch(0.55_0.18_290)]',
+  won: 'border-l-emerald-400 [--card-glow-color:oklch(0.55_0.15_145)]',
+  lost: 'border-l-red-400 [--card-glow-color:oklch(0.55_0.18_25)]',
+}
+
+/**
+ * Ink to match each stage's chip — the LABEL colour, where STAGE_COLOR is the
+ * bar fill.
+ *
+ * ⚠ ITS HOME IS HERE, BESIDE THE OTHER FOUR MAPS. This lived in
+ * `StageIndicator.tsx` as a private `Record<DealStage, string>`, which is a
+ * fifth stage map in a component — exactly the hand-written enumeration beside
+ * a registry that §12 warns drifts, and it would have been the one place a new
+ * member silently rendered unstyled.
+ */
+export const STAGE_TEXT: Record<DealStage, string> = {
+  prospecting: 'text-muted-foreground',
+  in_discussions: 'text-cyan-600 dark:text-cyan-400',
+  due_diligence: 'text-caution',
+  contracting: 'text-violet-600 dark:text-violet-400',
+  won: 'text-positive',
+  lost: 'text-critical',
+}
+
+/**
+ * The stage vocabulary as a model is told it — pipe-joined, in order.
+ *
+ * ⚠ GENERATED, NEVER TYPED INTO A PROMPT. §12: a taxonomy written into a
+ * prompt is a second schema and it drifts silently, because a category the
+ * model was never told about simply never fires. Six prompts each held their
+ * own copy of `pursuit | capture | bid | award | mobilization | execution |
+ * closeout` — one of them with a worked example per member — so the renaming
+ * on 10-30 would have left every extraction proposing stages the enum no
+ * longer has, and a value outside an enum discards the WHOLE insert (§12).
+ *
+ * Every prompt that enumerates stages now interpolates this.
+ */
+export const STAGE_ENUM_FOR_PROMPT = STAGES.join(' | ')
+
+/** The same list as an arrow-joined funnel, for prose that describes order. */
+export const STAGE_FUNNEL_FOR_PROMPT = STAGE_PIPELINE.map((s) => STAGE_LABELS[s]).join(' → ')
+
+/** Is this a member of the live vocabulary? Narrows an unknown string. */
+export function isDealStage(value: unknown): value is DealStage {
+  return typeof value === 'string' && (STAGES as string[]).includes(value)
 }
 
 // ─── DD Severity ─────────────────────────────────────────────────────────────
@@ -326,12 +409,97 @@ export function weightedValue(estimatedValue: number | null, winProbability: num
   return estimatedValue * (winProbability / 100)
 }
 
-/** Color for a P-win badge, scaled by confidence. */
+// ─── Win probability ─────────────────────────────────────────────────────────
+
+/*
+  LOW / MEDIUM / HIGH, PICKED BY HAND (Richard, 2026-10-30):
+  *"Make it so we can manually select win probability. Low, Medium and High."*
+
+  ⚠ THE COLUMN STAYS `win_probability int4` AND THAT IS DELIBERATE. A band is
+  what a human can honestly assert about a deal; a percentage is what the
+  arithmetic needs — `weightedValue()` multiplies by it, and the weighted
+  pipeline figure on the board, the dashboard and `snapshot.ts` all read that
+  product. Storing the band as text would have meant either losing the weighted
+  figure or re-deriving a percentage from the band at four call sites, which is
+  the same mapping written four times (§12). So the band IS a percentage, with
+  ONE place that says which: `WIN_BAND_VALUE` below.
+
+  ⚠ AND THE READER IS SHOWN THE BAND, NEVER THE NUMBER. Printing "25%" back at
+  somebody who chose "Low" is inventing a precision they did not assert — the
+  same reason §12 forbids printing a stored enum at a reader. `winBandLabel()`
+  is what every surface renders.
+
+  Measured before choosing the numbers: 21 of 23 projects held NULL and the
+  two that were set held 80 and 99, so nothing real is reinterpreted by this —
+  both land in High, which is what they meant.
+*/
+
+export const WIN_BANDS = ['low', 'medium', 'high'] as const
+export type WinBand = (typeof WIN_BANDS)[number]
+
+/**
+ * The percentage each band is stored as — the ONE place the mapping lives.
+ *
+ * The midpoint of each third, so a band is never a claim about the edge of its
+ * own range: Low is "a long shot", not "exactly one in four".
+ */
+export const WIN_BAND_VALUE: Record<WinBand, number> = {
+  low: 20,
+  medium: 50,
+  high: 80,
+}
+
+export const WIN_BAND_LABELS: Record<WinBand, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+}
+
+export const WIN_BAND_BADGE: Record<WinBand, string> = {
+  low: chipTone('critical'),
+  medium: chipTone('caution'),
+  high: chipTone('positive'),
+}
+
+/** The bar's fill, for the meter under the badge. */
+export const WIN_BAND_COLOR: Record<WinBand, string> = {
+  low: 'bg-critical',
+  medium: 'bg-caution',
+  high: 'bg-positive',
+}
+
+/**
+ * Which band a stored percentage falls in.
+ *
+ * ⚠ THE BOUNDARIES ARE WIDE ON PURPOSE, because this reads values no picker
+ * wrote. Two projects carry 80 and 99 from the old free-text field, and a
+ * brief or an import may yet supply any integer. Anything from 35 up is High,
+ * anything under 35 that is still positive is Low, and the middle third is
+ * Medium — so an old number is always readable as one of the three rather than
+ * rendering blank.
+ */
+export function winBand(p: number | null | undefined): WinBand | null {
+  if (p == null) return null
+  if (p >= 65) return 'high'
+  if (p >= 35) return 'medium'
+  return 'low'
+}
+
+/** What a reader sees. Null for "not set" — the caller decides how to say that. */
+export function winBandLabel(p: number | null | undefined): string | null {
+  const band = winBand(p)
+  return band ? WIN_BAND_LABELS[band] : null
+}
+
+/** Colour for a win-probability chip, by band. */
 export function pwinBadge(p: number | null | undefined): string {
-  if (p == null) return chipTone('neutral')
-  if (p >= 60) return chipTone('positive')
-  if (p >= 35) return chipTone('caution')
-  return chipTone('critical')
+  const band = winBand(p)
+  return band ? WIN_BAND_BADGE[band] : chipTone('neutral')
+}
+
+/** Is this one of the three bands? Narrows a value off the wire. */
+export function isWinBand(value: unknown): value is WinBand {
+  return typeof value === 'string' && (WIN_BANDS as readonly string[]).includes(value)
 }
 
 /** Whole days from today (local) until a date string; negative = overdue. */

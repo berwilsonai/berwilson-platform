@@ -553,7 +553,7 @@ export default function EmailIngestReview({
               </select>
             </Field>
             <Field label="Stage">
-              <select className={inputCls} value={proj.stage ?? 'pursuit'} onChange={(e) => setProj({ ...proj, stage: e.target.value })}>
+              <select className={inputCls} value={proj.stage ?? 'prospecting'} onChange={(e) => setProj({ ...proj, stage: e.target.value })}>
                 {STAGES.map((s) => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
               </select>
             </Field>

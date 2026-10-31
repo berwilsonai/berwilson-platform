@@ -14,8 +14,8 @@ import { SECTORS, SECTOR_LABELS } from '@/lib/utils/constants'
 import {
   OPPORTUNITY_TYPES,
   OPPORTUNITY_TYPE_LABELS,
-  OPPORTUNITY_STATUSES,
-  OPPORTUNITY_STATUS_LABELS,
+  OPPORTUNITY_STAGES,
+  OPPORTUNITY_STAGE_LABELS,
   OPPORTUNITY_PRIORITIES,
   OPPORTUNITY_PRIORITY_LABELS,
 } from '@/lib/utils/opportunities'
@@ -116,18 +116,18 @@ export default function OpportunityForm({ mode, opportunity }: OpportunityFormPr
           </div>
 
           <div>
-            <label htmlFor="status" className={labelClass}>
-              Status
+            <label htmlFor="stage" className={labelClass}>
+              Stage
             </label>
             <select
-              id="status"
-              name="status"
-              defaultValue={opportunity?.status ?? 'identified'}
+              id="stage"
+              name="stage"
+              defaultValue={opportunity?.stage ?? 'prospecting'}
               className={inputClass}
             >
-              {OPPORTUNITY_STATUSES.map((s) => (
+              {OPPORTUNITY_STAGES.map((s) => (
                 <option key={s} value={s}>
-                  {OPPORTUNITY_STATUS_LABELS[s]}
+                  {OPPORTUNITY_STAGE_LABELS[s]}
                 </option>
               ))}
             </select>

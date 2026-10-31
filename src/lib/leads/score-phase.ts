@@ -175,7 +175,7 @@ export function toProposalExtraction(lead: LeadRow, attachmentText: string): Pro
         name: lead.title,
         description: lead.summary,
         sector: lead.sector,
-        stage: 'pursuit',
+        stage: 'prospecting',
         estimated_value: lead.estimated_value,
         contract_type: null,
         delivery_method: null,

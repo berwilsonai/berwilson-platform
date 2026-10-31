@@ -4,8 +4,8 @@ import UrlFacets from '@/components/ui/url-facets'
 import {
   OPPORTUNITY_TYPES,
   OPPORTUNITY_TYPE_LABELS,
-  OPPORTUNITY_STATUSES,
-  OPPORTUNITY_STATUS_LABELS,
+  OPPORTUNITY_STAGES,
+  OPPORTUNITY_STAGE_LABELS,
 } from '@/lib/utils/opportunities'
 
 /**
@@ -18,7 +18,7 @@ import {
  * than reading `FIELD_CONTROL_SM_CLASS`, so its controls were a different
  * height from the identical row two pages over.
  */
-export default function OpportunityFilters({ type, status }: { type: string; status: string }) {
+export default function OpportunityFilters({ type, stage }: { type: string; stage: string }) {
   return (
     <UrlFacets
       facets={[
@@ -29,10 +29,10 @@ export default function OpportunityFilters({ type, status }: { type: string; sta
           options: OPPORTUNITY_TYPES.map((t) => [t, OPPORTUNITY_TYPE_LABELS[t]] as const),
         },
         {
-          param: 'status',
-          allLabel: 'All Statuses',
-          value: status,
-          options: OPPORTUNITY_STATUSES.map((s) => [s, OPPORTUNITY_STATUS_LABELS[s]] as const),
+          param: 'stage',
+          allLabel: 'All Stages',
+          value: stage,
+          options: OPPORTUNITY_STAGES.map((s) => [s, OPPORTUNITY_STAGE_LABELS[s]] as const),
         },
       ]}
     />

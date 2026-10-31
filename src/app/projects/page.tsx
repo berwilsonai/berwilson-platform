@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { Plus, FolderKanban, GanttChart } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { ProjectSector, ProjectStatus, ProjectStage } from '@/lib/supabase/types'
+import type { ProjectSector, ProjectStatus, DealStage } from '@/lib/supabase/types'
 import { SECTORS, STATUSES, STAGES } from '@/lib/utils/constants'
 import { getViewer, accessibleProjectIds } from '@/lib/auth/viewer'
 
@@ -17,6 +17,8 @@ import { dropHidden } from '@/lib/security/confidential'
 import { viewerHiddenProjectIds } from '@/lib/security/request'
 import { PageHeader, HeaderMetrics } from '@/components/ui/page-header'
 import { coverageNote, portfolioTotal } from '@/lib/records/pipeline-value'
+import { formatMegawatts, phaseLookup, portfolioPower, powerCoverageNote } from '@/lib/records/power'
+import { readPhaseRows } from '@/lib/records/power-read'
 import { formatValue } from '@/lib/utils/constants'
 
 interface PageProps {
@@ -31,8 +33,8 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
   const status = STATUSES.includes(params.status as ProjectStatus)
     ? (params.status as ProjectStatus)
     : ''
-  const stage = STAGES.includes(params.stage as ProjectStage)
-    ? (params.stage as ProjectStage)
+  const stage = STAGES.includes(params.stage as DealStage)
+    ? (params.stage as DealStage)
     : ''
 
   const supabase = createAdminClient()
@@ -71,6 +73,19 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
     : []
   projects = dropHidden(projects, (p) => p.id, hidden)
 
+  /*
+    The ramp-up schedules for everything on screen.
+
+    ⚠ READ AFTER `dropHidden`, AND THE IDS COME FROM THE FILTERED SET. A
+    confidential project is out of every aggregate by §8, and a lookup built
+    over the unfiltered list would put its megawatts into the masthead total —
+    the same shape as the `head: true` count that reached the sidebar badge
+    (§12). The filtered ids are the only ones asked for, so there is nothing to
+    withhold afterwards.
+  */
+  const phaseRows = await readPhaseRows(projects.map((p) => p.id))
+  const phasesOf = phaseLookup(phaseRows)
+
   const count = projects?.length ?? 0
   const hasFilters = sector || status || stage
 
@@ -83,6 +98,9 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
     rule, and the metric strip is a new reader of it.
   */
   const total = portfolioTotal(projects)
+  // ⚠ `portfolioPower`, NEVER a flat sum — this set holds programs AND their
+  // sub-projects at once, and a bare sum counts the same megawatts twice.
+  const power = portfolioPower(projects, phasesOf)
 
   // Named filter sets for this page. A read failure here is a missing
   // convenience, never a broken list — `listSavedViews` returns [] and says so
@@ -120,6 +138,23 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
             <HeaderMetrics
               items={[
                 { label: hasFilters ? 'matching' : 'projects', value: count },
+                /*
+                  ⚠ CAPACITY BEFORE VALUE. Richard, 10-30: the megawatt total
+                  *"is the key metric"*, and one project in thirty carries an
+                  `estimated_value` at all (§13) — so the money figure is the
+                  one that is usually absent, not this.
+                  ⚠ AND IT CARRIES ITS COVERAGE. A portfolio total over 16 of
+                  30 scheduled deals is the figure most likely to be misread,
+                  which is the whole reason `powerCoverageNote` exists.
+                */
+                ...(power.megawatts > 0
+                  ? [
+                      {
+                        label: powerCoverageNote(power) ?? 'capacity',
+                        value: formatMegawatts(power.megawatts),
+                      },
+                    ]
+                  : []),
                 ...(total.amount > 0
                   ? [
                       {
@@ -171,7 +206,7 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
           }
         />
       ) : (
-        <ProjectsClient projects={projects} stageFilter={stage} />
+        <ProjectsClient projects={projects} stageFilter={stage} phases={phaseRows} />
       )}
 
       <ProtectedProjectList projects={protectedProjects} />

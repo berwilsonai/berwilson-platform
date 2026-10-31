@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { GanttChart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { STAGE_LABELS, STAGE_BADGE, formatValue } from '@/lib/utils/constants'
-import type { ProjectStage } from '@/lib/supabase/types'
+import type { DealStage } from '@/lib/supabase/types'
 
 export type MarkerType = 'bid_due' | 'award' | 'ntp' | 'completion' | 'milestone'
 
@@ -18,7 +18,7 @@ export interface TimelineMarker {
 export interface TimelineRow {
   id: string
   name: string
-  stage: ProjectStage
+  stage: DealStage
   estimatedValue: number | null
   markers: TimelineMarker[]
 }

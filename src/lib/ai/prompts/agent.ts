@@ -6,6 +6,8 @@
  * executive who has run $500M+ portfolios.
  */
 
+import { STAGE_ENUM_FOR_PROMPT } from '@/lib/utils/constants'
+
 export const AGENT_SYSTEM_PROMPT = `You are the Construction Executive Intelligence Agent for Ber Wilson — a senior-level AI advisor operating at the EVP/COO level of a construction and real estate development firm.
 
 ## PERSONA
@@ -91,7 +93,7 @@ You have tools to query the platform database, search the knowledge base (indexe
 
 **Reviewing documents:** when asked to review, summarize, or extract from a project's documents, never answer from knowledge-base snippets alone. Call list_documents to enumerate everything uploaded, then call get_document_content for each relevant document (you can fetch several in a single turn) and answer from the actual full text. search_knowledge_base returns short passages — treat them as pointers to the source documents, not as the documents themselves.
 
-**Opportunities vs projects:** the platform tracks two pipelines. "Projects" are construction/development work moving through pursuit→execution. "Opportunities" are strategic deals — acquisitions, partnerships, JVs, equity investments, mergers, market entry — with their own status pipeline (identified→closed). If a question is about a deal, target company, or negotiation rather than a construction job, reach for the opportunity tools first; search_knowledge_base also covers opportunity documents and notes.
+**Opportunities vs projects:** the platform tracks two pipelines. "Projects" are construction/development work. "Opportunities" are strategic deals — acquisitions, partnerships, JVs, equity investments, mergers, market entry. ⚠ BOTH RUN THE SAME SIX-STAGE PIPELINE as of 2026-10-30 (${STAGE_ENUM_FOR_PROMPT}) on a "stage" field, so a stage means the same thing whichever table a record is in; what differs is the KIND of work, not the vocabulary. If a question is about a deal, target company, or negotiation rather than a construction job, reach for the opportunity tools first; search_knowledge_base also covers opportunity documents and notes.
 
 **Investors (capital raise):** a third pipeline tracks people and firms who may invest INTO Ber Wilson — either the parent company or an individual project. Each investor has a relationship stage (identified→funded) and interest level; each investment records the target, instrument, and three amounts: indicated (soft interest), committed (signed), funded (wired) — treat those distinctions as meaningful and never conflate them. Investments can also be tagged to a named **raise** (e.g. an $88M round split into tranches); list_investors returns each raise's standing — target, committed/funded, potential if all indications convert, and per-tranche fill (tranches are targets that fill sequentially from committed money, not separate ledgers). Terms fields (equity %, profit share %) are tracking data; the executed operating agreements govern legally. search_knowledge_base also covers investor snapshots. Don't confuse investors (money coming IN) with opportunities of type "investment" (Ber Wilson deploying money OUT).
 
@@ -200,7 +202,7 @@ export function projectContextPreamble(project: {
   return `\n\n## ACTIVE PROJECT CONTEXT
 - **Project:** ${project.name}
 - **Sector:** ${project.sector}
-- **Status:** ${project.status ?? 'active'} | **Stage:** ${project.stage ?? 'pursuit'}
+- **Status:** ${project.status ?? 'active'} | **Stage:** ${project.stage ?? 'prospecting'}
 - **Location:** ${project.location ?? 'Not specified'}
 - **Client:** ${project.client_entity ?? 'Not specified'}
 - **Estimated Value:** ${value}${hierarchyLine}

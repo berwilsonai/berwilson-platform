@@ -58,7 +58,9 @@ for (const table of tables) {
 // ── every enum guard matches the live enum ───────────────────────────────────
 const ENUM_FIELDS: { table: string; field: string; enumName: string }[] = [
   { table: 'projects', field: 'sector', enumName: 'project_sector' },
-  { table: 'projects', field: 'stage', enumName: 'project_stage' },
+  { table: 'projects', field: 'stage', enumName: 'deal_stage' },
+  // ⚠ The SAME enum on both tables since 10-30 — one vocabulary, two pipelines.
+  { table: 'opportunities', field: 'stage', enumName: 'deal_stage' },
   { table: 'projects', field: 'status', enumName: 'project_status' },
 ]
 

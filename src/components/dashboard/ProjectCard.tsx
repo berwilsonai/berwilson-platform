@@ -3,17 +3,18 @@ import {
   CheckSquare, Clock, AlertTriangle, Layers, CalendarClock, Ban,
   Timer, UserRound,
 } from 'lucide-react'
-import type { Project } from '@/lib/supabase/types'
-import type { ProjectStage } from '@/lib/supabase/types'
+import type { DealStage, Project } from '@/lib/supabase/types'
 import { cn } from '@/lib/utils'
 import { Chip } from '@/components/ui/chip'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
 import {
   STATUS_BADGE, STATUS_LABELS,
-  bidDueLabel, daysUntilDate, formatValue
+  bidDueLabel, daysUntilDate, formatValue, STAGE_PIPELINE, winBandLabel,
 } from '@/lib/utils/constants'
 import { STAGE_BORDER } from '@/lib/utils/stages'
 import StageIndicator from './StageIndicator'
+import { PowerFigure } from '@/components/records/PowerFigure'
+import type { SubtreePower } from '@/lib/records/power'
 
 export interface ProjectDeadline {
   label: string
@@ -80,6 +81,17 @@ function timeAgo(dateStr: string | null): string {
 interface ProjectCardProps {
   project: Project
   counts?: ProjectCardCounts
+  /**
+   * The ramp-up total, already rolled up by the caller.
+   *
+   * ⚠ PASSED IN, NEVER READ HERE. This component renders inside a client list
+   * (ProjectsClient) AND inside server pages (the dashboard), so it cannot
+   * fetch; and the figure is a HIERARCHY answer that needs the whole set, which
+   * a single card does not have. Computing it per card from the card's own
+   * phases would make a program show its own 900 MW where every other surface
+   * shows its sites' 600 — one quantity, two definitions (§12).
+   */
+  power?: SubtreePower
   isProgram?: boolean
   parentName?: string
   /** Active search term — matched substrings in name/client/location are highlighted. */
@@ -88,16 +100,19 @@ interface ProjectCardProps {
   style?: React.CSSProperties
 }
 
-export default function ProjectCard({ project, counts, isProgram, parentName, highlight, className, style }: ProjectCardProps) {
+export default function ProjectCard({ project, counts, power, isProgram, parentName, highlight, className, style }: ProjectCardProps) {
   const status = project.status ?? 'active'
-  const stage = (project.stage ?? 'pursuit') as ProjectStage
+  const stage = project.stage
 
   const bidDue = (project as { bid_due_date?: string | null }).bid_due_date ?? null
   const bidDueDays = daysUntilDate(bidDue)
   const winProb = (project as { win_probability?: number | null }).win_probability ?? null
   const captureLead = (project as { capture_lead?: string | null }).capture_lead ?? null
   // Only surface the submission deadline pre-award where it's actionable
-  const showBidDue = bidDue && !['award', 'mobilization', 'execution', 'closeout'].includes(stage)
+  // ⚠ FROM THE VOCABULARY. This was a literal list of the four post-award
+  // members of the old enum — `string[]`, so the rename left it matching
+  // nothing and a bid deadline would have shown on every won and lost deal.
+  const showBidDue = bidDue && (STAGE_PIPELINE as DealStage[]).includes(stage)
   // Color carries urgency: red ≤7d/overdue, amber ≤21d, plain beyond that.
   const bidUrgent = bidDueDays != null && bidDueDays <= 7
   const bidNear = bidDueDays != null && bidDueDays > 7 && bidDueDays <= 21
@@ -159,6 +174,11 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
               failure, not as "nobody has priced this yet". Say nothing where
               there is nothing, and say it in words where there is room. */}
           <div className="flex flex-col items-end shrink-0">
+            {/* ⚠ CAPACITY ABOVE VALUE, AND IN THE ACCENT. Richard, 10-30: the
+                megawatt total is the key metric, so on a card it leads the
+                number stack rather than trailing it. It renders nothing at all
+                where there is no schedule — never a placeholder. */}
+            {power ? <PowerFigure total={power} /> : null}
             {project.estimated_value != null ? (
               <span className="text-sm font-bold tnum text-foreground">
                 {formatValue(project.estimated_value)}
@@ -166,9 +186,13 @@ export default function ProjectCard({ project, counts, isProgram, parentName, hi
             ) : (
               <span className="text-[11px] text-muted-foreground/70">No value set</span>
             )}
-            {winProb != null && (
-              <span className="text-[11px] text-muted-foreground tnum" title={`Win probability ${winProb}%`}>
-                {winProb}% win
+            {winBandLabel(winProb) != null && (
+              /* ⚠ THE BAND, NOT THE NUMBER (§12). Win probability is one of
+                 three hand-picked bands as of 10-30; printing "20% win" at a
+                 reader who chose "Low" asserts a precision nobody claimed.
+                 `tnum` goes with it — there are no digits left to align. */
+              <span className="text-[11px] text-muted-foreground" title="Win probability, set by hand">
+                {winBandLabel(winProb)} win
               </span>
             )}
           </div>

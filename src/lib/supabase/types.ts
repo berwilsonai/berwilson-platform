@@ -136,7 +136,19 @@ export type DevNote = Tables<'dev_notes'>
 
 export type ProjectSector = Enums<'project_sector'>
 export type ProjectStatus = Enums<'project_status'>
-export type ProjectStage = Enums<'project_stage'>
+/**
+ * The pipeline position of a deal — Prospecting → In Discussions → Due
+ * Diligence → Contracting → Won → Lost (Richard, 2026-10-30).
+ *
+ * ⚠ `DealStage`, NOT `DealStage`, AND SHARED BY BOTH TABLES. `projects` and
+ * `opportunities` ran two separate vocabularies until 10-30 — seven
+ * defence-contracting phases on one and nine statuses on the other — so a
+ * promotion between them had to translate and no board could show both. One
+ * type, one column name (`stage`) on both. There is deliberately NO
+ * `DealStage` alias kept beside this: a second name for one vocabulary is
+ * how the two drifted in the first place.
+ */
+export type DealStage = Enums<'deal_stage'>
 export type UpdateSource = Enums<'update_source'>
 export type ReviewState = Enums<'review_state'>
 export type DdSeverity = Enums<'dd_severity'>

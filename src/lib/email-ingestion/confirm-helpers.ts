@@ -7,7 +7,7 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { storeExtractedText } from '@/lib/ai/document-text'
 import type { TablesInsert } from '@/lib/supabase/types'
-import type { ProjectSector, ProjectStage } from '@/lib/supabase/types'
+import type { ProjectSector, DealStage } from '@/lib/supabase/types'
 import { SECTORS, STAGES } from '@/lib/utils/constants'
 import { oppType } from '@/lib/utils/opportunities'
 
@@ -57,9 +57,9 @@ export async function createRecordFromFields(
     const sector = SECTORS.includes(fields.sector as ProjectSector)
       ? (fields.sector as ProjectSector)
       : ('real_estate' as ProjectSector)
-    const stage = STAGES.includes(fields.stage as ProjectStage)
-      ? (fields.stage as ProjectStage)
-      : ('pursuit' as ProjectStage)
+    const stage = STAGES.includes(fields.stage as DealStage)
+      ? (fields.stage as DealStage)
+      : ('prospecting' as DealStage)
 
     const row: TablesInsert<'projects'> = {
       name,
@@ -83,7 +83,10 @@ export async function createRecordFromFields(
   const row: TablesInsert<'opportunities'> = {
     name,
     opp_type: oppType(str(fields.opp_type)),
-    status: 'identified',
+    // ⚠ `stage`, NOT `status: 'identified'` (fixed 10-30) — see the note in
+    // leads/promote.ts. The CHECK on `status` would have refused this outright.
+    stage: 'prospecting',
+    status: 'active',
     priority: 'medium',
     sector: str(fields.sector),
     location: str(fields.location),

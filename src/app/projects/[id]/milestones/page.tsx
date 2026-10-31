@@ -33,7 +33,7 @@ export default async function MilestonesPage({ params }: PageProps) {
       initialMilestones={milestones ?? []}
       stages={STAGES}
       stageLabels={STAGE_LABELS}
-      initialStage={project?.stage ?? 'pursuit'}
+      initialStage={project?.stage ?? 'prospecting'}
       advance={{ url: `/api/projects/${id}/stage`, field: 'stage' }}
     />
   )

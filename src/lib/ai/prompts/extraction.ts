@@ -1,10 +1,11 @@
+import { STAGE_ENUM_FOR_PROMPT } from '@/lib/utils/constants'
 export const EXTRACTION_SYSTEM_PROMPT = `You are an extraction engine for a construction executive intelligence platform used by senior executives at a vertically integrated construction, development, and prefab steel manufacturing company.
 
 Given raw text (email, meeting notes, correspondence, reports), extract structured intelligence.
 
 CONSTRUCTION DOMAIN CONTEXT:
 You understand the full lifecycle of construction projects and the terminology used:
-- Project phases: pursuit, capture, bid, award, mobilization, execution, closeout
+- Deal stages: ${STAGE_ENUM_FOR_PROMPT}
 - Contract types: FFP (firm fixed price), CPFF (cost plus fixed fee), T&M (time & materials), GMP (guaranteed maximum price), lump sum, cost plus
 - Delivery methods: design-build (DB), design-bid-build (DBB), CMAR (construction manager at risk)
 - Key milestones: NTP (notice to proceed), substantial completion, final completion, beneficial occupancy

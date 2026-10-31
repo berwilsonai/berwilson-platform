@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import MilestonesTab from '@/components/projects/MilestonesTab'
-import { OPPORTUNITY_PIPELINE, OPPORTUNITY_STATUS_LABELS, oppStatus } from '@/lib/utils/opportunities'
+import { OPPORTUNITY_PIPELINE, OPPORTUNITY_STAGE_LABELS, oppStage } from '@/lib/utils/opportunities'
 
 export const metadata = { title: 'Milestones — Ber Wilson Intelligence' }
 
@@ -19,7 +19,7 @@ export default async function OpportunityMilestonesPage({ params }: PageProps) {
       .eq('opportunity_id', id)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true }),
-    supabase.from('opportunities').select('id, status').eq('id', id).single(),
+    supabase.from('opportunities').select('id, stage').eq('id', id).single(),
   ])
 
   // Milestones sit under the deal pipeline's own phases, and "advance" moves
@@ -30,9 +30,9 @@ export default async function OpportunityMilestonesPage({ params }: PageProps) {
       recordId={id}
       initialMilestones={milestones ?? []}
       stages={OPPORTUNITY_PIPELINE}
-      stageLabels={OPPORTUNITY_STATUS_LABELS}
-      initialStage={oppStatus(opportunity?.status)}
-      advance={{ url: `/api/opportunities/${id}`, field: 'status' }}
+      stageLabels={OPPORTUNITY_STAGE_LABELS}
+      initialStage={oppStage(opportunity?.stage)}
+      advance={{ url: `/api/opportunities/${id}`, field: 'stage' }}
     />
   )
 }

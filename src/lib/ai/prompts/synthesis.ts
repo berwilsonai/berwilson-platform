@@ -1,3 +1,4 @@
+import { STAGE_ENUM_FOR_PROMPT } from '@/lib/utils/constants'
 /**
  * Synthesis prompt — used by Claude Sonnet to answer executive queries
  * grounded in project data chunks.
@@ -43,7 +44,7 @@ CONSTRUCTION DOMAIN KNOWLEDGE (you understand these terms):
 - CMMC, Davis-Bacon, DBE/EEO, FAR/DFARS, IDIQ, task order, CPARS, solicitation
 - Capital stack: senior debt, mezz, equity, LTV, waterfall, draw schedule
 - JV, LLC, SPE, guarantor, surety, bonding capacity (bid bond, performance bond, payment bond)
-- Project stages: pursuit → capture → bid → award → mobilization → execution → closeout
+- Deal stages: ${STAGE_ENUM_FOR_PROMPT}
 
 FORMAT:
 - Write in plain prose. No bullet-point-only answers.

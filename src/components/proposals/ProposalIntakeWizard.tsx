@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Upload, FileText, CheckCircle2, AlertTriangle, Loader2, X, Building2, ChevronRight, ExternalLink, Users, Layers } from 'lucide-react'
 import FitAssessmentCard from '@/components/proposals/FitAssessmentCard'
+import { STAGES, STAGE_LABELS } from '@/lib/utils/constants'
 
 type Step = 'upload' | 'review' | 'parties' | 'confirm' | 'done'
 
@@ -97,7 +98,14 @@ interface DoneResult {
 }
 
 const SECTORS = ['government', 'infrastructure', 'real_estate', 'prefab', 'institutional']
-const STAGES = ['pursuit', 'capture', 'bid', 'award', 'mobilization', 'execution', 'closeout']
+/*
+  ⚠ THE STAGE LIST IS IMPORTED, NOT TYPED HERE. This was a literal array of the
+  old seven members — a hand-written enumeration beside the registry, which is
+  the drift §12 names, and `tsc` could not see it because it was `string[]`.
+  After the 10-30 rename this picker would have offered seven stages that no
+  longer exist and every confirm would have failed on `22P02`, discarding the
+  whole insert rather than the field. Green through typecheck and build.
+*/
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   single_project_proposal: 'Single Project Proposal',
@@ -357,7 +365,7 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
       return {
         name: p.name || `Project ${i + 1}`,
         sector: p.sector || 'real_estate',
-        stage: p.stage || 'pursuit',
+        stage: p.stage || 'prospecting',
         description: p.description || null,
         estimated_value: p.estimated_value || null,
         contract_type: p.contract_type || null,
@@ -585,9 +593,9 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
                       </div>
                       <div>
                         <label className="text-xs text-muted-foreground">Stage</label>
-                        <select value={p.stage || 'pursuit'} onChange={(e) => updateProject(i, 'stage', e.target.value)}
+                        <select value={p.stage || 'prospecting'} onChange={(e) => updateProject(i, 'stage', e.target.value)}
                           className="w-full mt-0.5 px-2 py-1.5 rounded border border-input bg-background text-sm">
-                          {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+                          {STAGES.map((s) => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
                         </select>
                       </div>
                       <div>

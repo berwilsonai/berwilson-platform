@@ -17,7 +17,7 @@ import {
 import { assessFit, type FitAssessment } from '@/lib/ai/fit-assessment'
 import { SECTORS, STAGES } from '@/lib/utils/constants'
 import { OPPORTUNITY_TYPES, oppType } from '@/lib/utils/opportunities'
-import type { ProjectSector, ProjectStage, JsonIn } from '@/lib/supabase/types'
+import type { ProjectSector, DealStage, JsonIn } from '@/lib/supabase/types'
 
 /**
  * Shared Email Ingestion processing path.
@@ -103,7 +103,7 @@ function normalize(raw: Partial<EmailIntakeExtraction> | null): EmailIntakeExtra
   const validSector = (v: unknown): string | null =>
     SECTORS.includes(v as ProjectSector) ? (v as string) : null
   const validStage = (v: unknown): string | null =>
-    STAGES.includes(v as ProjectStage) ? (v as string) : null
+    STAGES.includes(v as DealStage) ? (v as string) : null
   const validOppType = (v: unknown): string | null =>
     OPPORTUNITY_TYPES.includes(oppType(v as string)) && v ? oppType(v as string) : null
 

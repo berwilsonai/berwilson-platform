@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { Trash2, Layers, FolderOpen, Search, X, ChevronDown, GitBranch, Kanban, Rows3, SlidersHorizontal } from 'lucide-react'
 import ProjectCard, { type ProjectCardCounts } from '@/components/dashboard/ProjectCard'
 import ProjectsTable from '@/components/projects/ProjectsTable'
-import type { Project, ProjectStage } from '@/lib/supabase/types'
+import type { Project, DealStage } from '@/lib/supabase/types'
 import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 import { useStoredState } from '@/hooks/use-stored-state'
@@ -18,6 +18,9 @@ import {
   pipelineValue,
   rolledPipelineValue,
 } from '@/lib/records/pipeline-value'
+import { phaseLookup, subtreePower, type SubtreePower } from '@/lib/records/power'
+import { PowerFigure } from '@/components/records/PowerFigure'
+import type { PhaseRow } from '@/lib/records/power-read'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
 import { useBoardDnd, BoardLiveRegion, DragHandle, BoardHint, type Lane } from '@/components/ui/board'
 import type { BoardDnd } from '@/components/ui/board'
@@ -39,11 +42,20 @@ interface ProjectsClientProps {
   projects: Project[]
   /** Active stage filter from the URL. When set, the pipeline board shows only this stage's column. */
   stageFilter?: string
+  /**
+   * Every ramp phase belonging to the projects above, as plain rows.
+   *
+   * ⚠ ROWS AND NOT A LOOKUP, because a `PhaseLookup` is a closure and a server
+   * component may hand a client only plain data. The lookup is rebuilt here,
+   * once, in a memo.
+   */
+  phases?: PhaseRow[]
 }
 
 function ProgramBanner({
   program,
   allProjects,
+  power,
   childCount,
   isCollapsed,
   onToggle,
@@ -51,6 +63,8 @@ function ProgramBanner({
   program: Project
   /** The whole set, so the banner can roll the value up from the leaves. */
   allProjects: Project[]
+  /** The ramp total, rolled up the same way and by the same module. */
+  power?: SubtreePower
   childCount: number
   isCollapsed: boolean
   onToggle: () => void
@@ -104,6 +118,9 @@ function ProgramBanner({
           >
             {STATUS_LABELS[status]}
           </span>
+          {/* Capacity first — the key metric (Richard, 10-30). Silent where
+              the program and its sites have no schedule between them. */}
+          {power ? <PowerFigure total={power} /> : null}
           <span
             className="text-sm font-bold tnum text-foreground"
             title={value.hint}
@@ -132,9 +149,25 @@ function ProgramBanner({
   )
 }
 
-export default function ProjectsClient({ projects: initialProjects, stageFilter }: ProjectsClientProps) {
+export default function ProjectsClient({ projects: initialProjects, stageFilter, phases = [] }: ProjectsClientProps) {
   const router = useRouter()
   const [projects, setProjects] = useState(initialProjects)
+
+  /*
+    The ramp-up figure each card shows.
+
+    ⚠ ROLLED UP OVER THE WHOLE SET, NOT PER CARD. A program's capacity is its
+    sub-projects'; computing it from a card's own phases would make the program
+    banner and the table disagree with /projects' masthead, which is the
+    one-quantity-two-definitions bug §12 opens with. `subtreePower` takes the
+    set for exactly that reason, so the lookup is built once here and every
+    card asks it.
+  */
+  const powerOf = useMemo(() => {
+    const lookup = phaseLookup(phases)
+    return (project: Project) => subtreePower(project, projects, lookup)
+  }, [phases, projects])
+
   // When a stage filter is active in the URL, restrict the pipeline columns to
   // just that stage so the board doesn't keep rendering every (mostly empty)
   // stage. No filter → show the full funnel.
@@ -142,9 +175,9 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
   // rebuild every drag handler on the board on every pass.
   const stageColumns = useMemo(
     () =>
-      (stageFilter && STAGES.includes(stageFilter as ProjectStage)
-        ? [stageFilter as ProjectStage]
-        : STAGES) as ProjectStage[],
+      (stageFilter && STAGES.includes(stageFilter as DealStage)
+        ? [stageFilter as DealStage]
+        : STAGES) as DealStage[],
     [stageFilter]
   )
   const [search, setSearch] = useState('')
@@ -317,8 +350,8 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
   const dnd = useBoardDnd<Project>({
     lanes,
     items: filtered,
-    laneOf: (p) => (p.stage ?? 'pursuit') as ProjectStage,
-    setLane: (p, laneId) => ({ ...p, stage: laneId as ProjectStage }),
+    laneOf: (p) => p.stage,
+    setLane: (p, laneId) => ({ ...p, stage: laneId as DealStage }),
     titleOf: (p) => p.name,
     /*
       ⚠ reorderable: false, AND IT IS A SCHEMA FACT. `projects` carries no
@@ -332,7 +365,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
       // Optimistic first: this component owns `projects`, so writing the stage
       // here is what makes every column total, the weighted figure and the
       // portfolio header move together with the card.
-      handleUpdate(move.itemId, { stage: move.toLaneId as ProjectStage })
+      handleUpdate(move.itemId, { stage: move.toLaneId as DealStage })
       const res = await fetch(`/api/projects/${move.itemId}/stage`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -341,12 +374,12 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
       if (!res.ok) {
         // Put it back, then say so. Throwing is what tells the hook to drop its
         // own optimistic arrangement.
-        handleUpdate(move.itemId, { stage: move.fromLaneId as ProjectStage })
+        handleUpdate(move.itemId, { stage: move.fromLaneId as DealStage })
         const { error } = await res.json().catch(() => ({ error: null }))
-        toast.error(error ?? `Could not move to ${STAGE_LABELS[move.toLaneId as ProjectStage]}`)
+        toast.error(error ?? `Could not move to ${STAGE_LABELS[move.toLaneId as DealStage]}`)
         throw new Error('stage move failed')
       }
-      toast.success(`Moved to ${STAGE_LABELS[move.toLaneId as ProjectStage]}`)
+      toast.success(`Moved to ${STAGE_LABELS[move.toLaneId as DealStage]}`)
       scheduleRefresh()
     },
   })
@@ -360,9 +393,9 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
     back, which on a reasoning model's round-trip reads as the drag failing.
   */
   const byStage = useMemo(() => {
-    const groups = new Map<ProjectStage, Project[]>()
+    const groups = new Map<DealStage, Project[]>()
     for (const p of dnd.preview) {
-      const stage = (p.stage ?? 'pursuit') as ProjectStage
+      const stage = p.stage
       const arr = groups.get(stage) ?? []
       arr.push(p)
       groups.set(stage, arr)
@@ -464,7 +497,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
 
       {/* ─── Table: the default, and the only view that is scannable ───────── */}
       {view === 'table' && filtered.length > 0 && (
-        <ProjectsTable projects={filtered} allProjects={projects} isDimmed={isDimmed} />
+        <ProjectsTable projects={filtered} allProjects={projects} phases={phases} isDimmed={isDimmed} />
       )}
 
       {/* ─── Pipeline (mobile): stage groups stacked top-to-bottom ──────────── */}
@@ -480,9 +513,9 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
             the duration of the hold and nothing else changes.
           */}
           {stageColumns
-            .filter(s => (byStage.get(s as ProjectStage)?.length ?? 0) > 0 || dnd.keyboard)
+            .filter(s => (byStage.get(s as DealStage)?.length ?? 0) > 0 || dnd.keyboard)
             .map(s => {
-            const stage = s as ProjectStage
+            const stage = s as DealStage
             const items = byStage.get(stage) ?? []
             const target = dnd.keyboard && !items.some(p => p.id === dnd.heldId)
             return (
@@ -513,6 +546,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                     <DeletableCard
                       key={project.id}
                       project={project}
+                      power={powerOf(project)}
                       parentName={project.parent_project_id ? nameById.get(project.parent_project_id) : undefined}
                       highlight={q}
                       dimmed={isDimmed(project.id)}
@@ -565,7 +599,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
       {view === 'pipeline' && filtered.length > 0 && (
         <div className="hidden lg:flex gap-4 overflow-x-auto pb-4 -mx-1 px-1">
           {stageColumns.map((s) => {
-            const stage = s as ProjectStage
+            const stage = s as DealStage
             const items = byStage.get(stage) ?? []
             // Whatever figure each project actually has, with the column
             // saying when it is made of more than one kind. A total that
@@ -669,6 +703,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                       <DeletableCard
                         key={project.id}
                         project={project}
+                        power={powerOf(project)}
                         parentName={project.parent_project_id ? nameById.get(project.parent_project_id) : undefined}
                         highlight={q}
                         dimmed={isDimmed(project.id)}
@@ -701,6 +736,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
             <ProgramBanner
               program={parent}
               allProjects={projects}
+              power={powerOf(parent)}
               childCount={children.length}
               isCollapsed={isCollapsed}
               onToggle={() => toggleProgram(parent.id)}
@@ -711,6 +747,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
                   <DeletableCard
                     key={child.id}
                     project={child}
+                    power={powerOf(child)}
                     parentName={parent.name}
                     highlight={q}
                     dimmed={isDimmed(child.id)}
@@ -742,6 +779,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
             <DeletableCard
               key={project.id}
               project={project}
+              power={powerOf(project)}
               highlight={q}
               dimmed={isDimmed(project.id)}
               onDeleted={() => handleDelete(project.id)}
@@ -757,6 +795,7 @@ export default function ProjectsClient({ projects: initialProjects, stageFilter 
 function DeletableCard({
   project,
   counts,
+  power,
   parentName,
   highlight,
   dimmed,
@@ -768,6 +807,8 @@ function DeletableCard({
 }: {
   project: Project
   counts?: ProjectCardCounts
+  /** The rolled-up ramp total, computed once by the list that owns the set. */
+  power?: SubtreePower
   parentName?: string
   highlight?: string
   dimmed?: boolean
@@ -948,6 +989,7 @@ function DeletableCard({
       <ProjectCard
         project={project}
         counts={counts}
+        power={power}
         parentName={parentName}
         highlight={highlight}
       />

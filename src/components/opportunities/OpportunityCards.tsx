@@ -5,16 +5,18 @@ import { MapPin, Building2, Target } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Opportunity } from '@/lib/supabase/types'
 import { formatValue, formatDate, SECTOR_LABELS } from '@/lib/utils/constants'
+import { PowerFigure } from '@/components/records/PowerFigure'
+import type { PowerTotal } from '@/lib/records/power'
 import type { ProjectSector } from '@/lib/supabase/types'
 import {
   oppType,
-  oppStatus,
+  oppStage,
   oppPriority,
   OPPORTUNITY_TYPE_LABELS,
   OPPORTUNITY_TYPE_BADGE,
   OPPORTUNITY_TYPE_BORDER,
-  OPPORTUNITY_STATUS_LABELS,
-  OPPORTUNITY_STATUS_BADGE,
+  OPPORTUNITY_STAGE_LABELS,
+  OPPORTUNITY_STAGE_BADGE,
   OPPORTUNITY_PRIORITY_BADGE,
   OPPORTUNITY_PRIORITY_LABELS,
 } from '@/lib/utils/opportunities'
@@ -32,6 +34,8 @@ export interface OpportunityCardsProps {
   canDelete?: boolean
   /** Supplied by `OpportunitiesClient`, which owns the state; see there. */
   onDeleted?: (id: string) => void
+  /** The ramp-up total for one record, by id. Absent = nothing to show. */
+  powerOf?: (recordId: string) => PowerTotal
 }
 
 /**
@@ -55,11 +59,18 @@ export default function OpportunityCards({
   opportunities,
   canDelete = false,
   onDeleted,
+  powerOf,
 }: OpportunityCardsProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {opportunities.map((opp) => (
-        <OpportunityCard key={opp.id} opp={opp} canDelete={canDelete} onDeleted={onDeleted} />
+        <OpportunityCard
+          key={opp.id}
+          opp={opp}
+          canDelete={canDelete}
+          onDeleted={onDeleted}
+          powerOf={powerOf}
+        />
       ))}
     </div>
   )
@@ -78,6 +89,7 @@ export function OpportunityCard({
   opp,
   canDelete = false,
   onDeleted,
+  powerOf,
   compact = false,
   dnd,
   laneId,
@@ -86,6 +98,15 @@ export function OpportunityCard({
   opp: Opportunity
   canDelete?: boolean
   onDeleted?: (id: string) => void
+  /**
+   * The ramp-up total for one record, by id.
+   *
+   * ⚠ A FUNCTION AND NOT A FIGURE, because this component is shared by the
+   * grid AND the board (`compact` is the target parameter) and both want the
+   * same lookup rather than each pre-computing per card. Absent = the caller
+   * has no schedules to show, and the figure is simply not rendered.
+   */
+  powerOf?: (recordId: string) => PowerTotal
   /** Narrow-column styling for the board: tighter padding, fewer meta rows. */
   compact?: boolean
   /** Present only on the board. */
@@ -94,7 +115,7 @@ export function OpportunityCard({
   index?: number
 }) {
   const t = oppType(opp.opp_type)
-  const s = oppStatus(opp.status)
+  const s = oppStage(opp.stage)
   const p = oppPriority(opp.priority)
   const draggable = dnd && laneId !== undefined && index !== undefined
   const held = draggable && dnd.draggingId === opp.id
@@ -133,10 +154,10 @@ export function OpportunityCard({
                   <span
                     className={cn(
                       'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
-                      OPPORTUNITY_STATUS_BADGE[s]
+                      OPPORTUNITY_STAGE_BADGE[s]
                     )}
                   >
-                    {OPPORTUNITY_STATUS_LABELS[s]}
+                    {OPPORTUNITY_STAGE_LABELS[s]}
                   </span>
                 )}
                 {p === 'high' && (
@@ -151,10 +172,15 @@ export function OpportunityCard({
                 )}
               </div>
 
-              {/* Name */}
-              <h3 className="text-sm font-semibold leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2">
-                {opp.name}
-              </h3>
+              {/* Name — and beside it the key metric (Richard, 10-30). The
+                  figure renders nothing where there is no ramp schedule, so a
+                  deal without one looks exactly as it did. */}
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="min-w-0 text-sm font-semibold leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2">
+                  {opp.name}
+                </h3>
+                {powerOf ? <PowerFigure total={powerOf(opp.id)} className="mt-0.5 shrink-0" /> : null}
+              </div>
 
               {/* Objective preview */}
               {!compact && opp.objective && (

@@ -17,6 +17,7 @@
  */
 
 import type { EmailIntakePerson } from './email-intake'
+import { STAGE_ENUM_FOR_PROMPT } from '@/lib/utils/constants'
 
 export const MEETING_INTAKE_PROMPT_VERSION = 'meeting-intake-1.3'
 
@@ -143,7 +144,7 @@ Produce:
 
 Ground everything strictly in the notes — never invent people, dollar figures, dates, decisions, or scope. If a fact is uncertain, omit it rather than guessing. When you propose enum-constrained values for a brand-new record, use only:
 - sector: government | infrastructure | real_estate | prefab | institutional | technology | health
-- stage: pursuit | capture | bid | award | mobilization | execution | closeout
+- stage: ${STAGE_ENUM_FOR_PROMPT}
 
 Return ONLY valid JSON matching exactly this shape (no markdown, no commentary):
 {

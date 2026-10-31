@@ -523,7 +523,12 @@ async function insertRecord(args: {
       .insert({
         name,
         opp_type: oppType,
-        status: 'identified',
+        // ⚠ `stage`, NOT `status: 'identified'` (fixed 10-30). The pipeline
+        // moved off `status` and `opportunities_status_check` now allows only
+        // active|on_hold, so the old line was `23514` on EVERY automatic
+        // opportunity creation — which fails the whole insert, not the field.
+        stage: 'prospecting',
+        status: 'active',
         description: body,
         next_step: nextStepLabel,
         identified_date: recordedOn,
@@ -571,7 +576,7 @@ async function insertRecord(args: {
       name,
       sector,
       // Omitted-vs-nulled still applies to these two, which DO have defaults.
-      stage: 'pursuit',
+      stage: 'prospecting',
       status: 'active',
       description: body,
       location: ref.location?.trim() || null,

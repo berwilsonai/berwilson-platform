@@ -43,6 +43,9 @@ import {
   threadUpdateHeading,
 } from '@/lib/email-sweep/thread-source'
 import { attachRecordingMeeting } from '@/lib/meetings/attach-recording'
+import {
+  attachmentSkipReason, SKIP_REASON_NOTE, type SkipReason,
+} from './attachment-hygiene'
 
 const BATCH = 100
 
@@ -967,6 +970,29 @@ async function importThreadAttachments(
     const messages = await fetchThread(thread.mailbox, thread.gmail_thread_id)
     const from = Math.min(dest.cursor, messages.length)
 
+    /*
+      The portfolio, for the picture gate — a photograph headed for the orphan
+      queue comes through only if its own name names a record (10-30).
+
+      ⚠ LOADED ONCE PER THREAD AND TOLERANT OF FAILURE. `loadTargets()` is the
+      same indexed read the router and `matchDocument` use. If it throws, the
+      list is empty, `identifiesRecord` matches nothing and every unnamed
+      picture is refused — which is the SAFE direction for this gate: a
+      withheld picture is recoverable from the mailbox, while a corpus filling
+      with `icon.png` is what was asked to stop. §12 says make the parameter
+      explicit so a job that forgets gets the safe behaviour; here a FAILURE
+      gets it too.
+    */
+    const hygieneTargets = dest.kind === 'orphan'
+      ? await loadTargets().catch((err) => {
+          console.error('[sweep/apply] could not load targets for the picture gate:', err)
+          return [] as Target[]
+        })
+      : []
+
+    /** How many attachments each hygiene rule refused, for the run's log. */
+    const skipped: Partial<Record<SkipReason, number>> = {}
+
     // Dedupe WITHIN the thread on file name — a bid package resends the same
     // drawing on every reply, and inside one conversation a repeated name really
     // is a repeat. Across threads the decision is made on CONTENT further down,
@@ -985,7 +1011,6 @@ async function importThreadAttachments(
     for (let i = from; i < messages.length; i++) {
       for (const a of messages[i].attachments) {
         if (a.isInline || a.size <= 0 || a.size > MAX_ATTACHMENT_BYTES) continue
-        if (isMailChrome(a.name, a.mimeType, a.size)) continue
         // ⚠ `isFileable` IS ASKED HERE, NOT ONLY WHEN FILING TO DRIVE. It has
         // always known a calendar invite is not a document — that is what keeps
         // four copies of `invite.ics` out of a project's Drive folder — but it
@@ -995,6 +1020,23 @@ async function importThreadAttachments(
         // `.ics` rows across both document tables, none of them indexed, all of
         // them in the way on a documents tab.
         if (!isFileable(a.name, a.mimeType)) continue
+        /*
+          THE HYGIENE GATE (10-30). Chrome, non-documents, and — on the ORPHAN
+          path only — a picture whose name names no record.
+
+          ⚠ THE REASON IS COUNTED, NOT JUST THE SKIP. §12: count the REASON
+          beside the number, because an unlabelled count is not a coverage
+          signal. "Took 4 of 31" says nothing; "refused 22 pictures that name
+          no record, 5 signature logos" is a judgement somebody can overturn.
+        */
+        const skip = attachmentSkipReason(
+          { name: a.name, mimeType: a.mimeType, size: a.size },
+          { toOrphanQueue: dest.kind === 'orphan', targets: hygieneTargets }
+        )
+        if (skip) {
+          skipped[skip] = (skipped[skip] ?? 0) + 1
+          continue
+        }
         const key = a.name.toLowerCase()
         if (seen.has(key)) continue
         seen.add(key)
@@ -1008,6 +1050,22 @@ async function importThreadAttachments(
         })
       }
     }
+    /**
+     * What the gates refused, as a sentence. Empty when nothing was refused.
+     *
+     * ⚠ §12: COUNT THE REASON BESIDE THE NUMBER — an unlabelled count is not a
+     * coverage signal, and "correctly skipped" is an assertion nothing checked.
+     * This is the line that makes the picture gate reviewable: if it ever
+     * starts refusing real evidence, the log says how much and under which
+     * rule, on the thread it happened to.
+     */
+    const skipNote = Object.entries(skipped)
+      .map(([reason, n]) => `${n} × ${SKIP_REASON_NOTE[reason as SkipReason]}`)
+      .join(', ')
+    if (skipNote) {
+      console.log(`[sweep/apply] ${thread.gmail_thread_id}: not imported — ${skipNote}`)
+    }
+
     if (refs.length === 0) {
       // Nothing to take — every attachment on these messages was inline chrome
       // or oversized. Settle the cursor anyway, or the link is reconsidered on
@@ -1483,43 +1541,14 @@ export async function importUnparentedAttachments(
   return progress
 }
 
-/**
- * A signature logo or a mail client's own artefact, dressed as an attachment.
- *
- * ⚠ `isInline` IS NOT SUFFICIENT, AND THE REASON IS THE MIRROR OF AN EXISTING
- * RULE. §12 says Gmail's composer stamps a Content-ID on every attached file, so
- * Content-Disposition must be checked first or real files are discarded as inline
- * chrome. The reverse also happens: when someone REPLIES from Gmail, the sender's
- * signature images are re-attached with `Content-Disposition: attachment` and
- * lose their inline marker entirely. Measured on the Highland threads —
- * `image001.png` (56,496 bytes) and `image002.png` (14,317) arrive inline on the
- * original message and as plain attachments on the reply, and both were imported
- * onto the project as documents, then filed into Drive.
- *
- * The signal that survives is the NAME. `image001.png`, `ATT00002.png`,
- * `oledata.mso` are generated by a mail client and never by a person, so a real
- * drawing is never called that. Bounded by size as well, so that a genuine photo
- * someone happened to leave named `image001.png` off a phone still comes through.
- */
-const CHROME_NAME = /^(?:image\d{2,4}|ATT\d{4,6}|oledata|~WRD\d+|Outlook-[a-z0-9]+)\.\w+$/i
-const CHROME_MAX_BYTES = 200 * 1024
-
-/**
- * ⚠ A MAIL CLIENT ALSO SENDS AN IMAGE WITH NO NAME AT ALL, which `CHROME_NAME`
- * cannot match because it requires an extension. Two 66,624-byte PNGs called
- * literally `noname` reached the corpus as project documents, and because they
- * are byte-identical the deduper retired one and left the other.
- */
-const UNNAMED_CHROME = /^(?:noname|untitled|unnamed)$/i
-
-export function isMailChrome(name: string, mimeType: string, size: number): boolean {
-  const trimmed = name.trim()
-  if (!CHROME_NAME.test(trimmed) && !UNNAMED_CHROME.test(trimmed)) return false
-  // A large file is somebody's actual document whatever it is called.
-  if (size > CHROME_MAX_BYTES) return false
-  // Only images and mail-client blobs; a PDF named image001.pdf is a document.
-  return mimeType.startsWith('image/') || mimeType === 'application/octet-stream'
-}
+/*
+  ⚠ `isMailChrome` AND THE OTHER ATTACHMENT PREDICATES MOVED TO
+  `attachment-hygiene.ts` ON 2026-10-30, with the widened rules and the new
+  picture gate beside them. Kept out of this file because this one is the
+  sweep's orchestration and those are pure string tests with their own suite —
+  and because a predicate that decides what never enters the corpus deserves
+  to be read without 1,500 lines of pagination around it.
+*/
 
 /**
  * A name that says WHICH ONE, for a file whose own name does not.

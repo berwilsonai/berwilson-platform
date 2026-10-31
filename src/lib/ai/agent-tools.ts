@@ -18,6 +18,10 @@ import { correspondenceRecency } from '@/lib/email-sweep/filed-threads'
 import { INVESTMENT_TARGET_KINDS, investmentTargetLabel } from '@/lib/utils/investors'
 import { categorizePlayerRole, listContactRoles, partyRoleMap } from '@/lib/contacts/roles'
 import { isDraftPath, sectionOf } from '@/lib/drive/data-room'
+import { isDealStage, STAGES, STAGE_LABELS, STATUSES } from '@/lib/utils/constants'
+import { oppStage } from '@/lib/utils/opportunities'
+import { phaseLookup, portfolioPower, powerCoverageNote, subtreePower } from '@/lib/records/power'
+import { readPhaseRows } from '@/lib/records/power-read'
 import type { AgentContext } from './agent'
 import type { Database } from '@/types/database'
 
@@ -37,15 +41,24 @@ export const agentTools = [
           enum: ['government', 'infrastructure', 'real_estate', 'prefab', 'institutional', 'technology', 'health'],
           description: 'Filter by sector',
         },
+        /*
+          ⚠ BOTH ENUMERATIONS ARE GENERATED. §12: a taxonomy written into a
+          prompt is a second schema and it drifts silently — "keep it out of
+          tool declarations especially", because the model is told the old
+          vocabulary and dutifully sends it, and a value outside a Postgres
+          enum fails the WHOLE query rather than the field. These two held
+          `pursuit…closeout` and `active/on_hold/won/lost/closed` as literals
+          until 10-30, three files from the registry.
+        */
         stage: {
           type: 'string',
-          enum: ['pursuit', 'capture', 'bid', 'award', 'mobilization', 'execution', 'closeout'],
-          description: 'Filter by project stage',
+          enum: [...STAGES],
+          description: 'Filter by deal stage',
         },
         status: {
           type: 'string',
-          enum: ['active', 'on_hold', 'won', 'lost', 'closed'],
-          description: 'Filter by project status (default: all statuses)',
+          enum: [...STATUSES],
+          description: 'Filter by whether the deal is being worked or parked (default: both). The OUTCOME is a stage — won and lost live there, not here.',
         },
         programs_only: {
           type: 'boolean',
@@ -185,7 +198,7 @@ export const agentTools = [
   },
   {
     name: 'get_portfolio_summary',
-    description: 'Get a cross-project portfolio overview: project counts by status/stage/sector, total estimated value, upcoming milestones, open risks, and program counts.',
+    description: 'Get a cross-project portfolio overview: project counts by status/stage/sector, TOTAL RAMP-UP CAPACITY IN MEGAWATTS, total estimated value, upcoming milestones, open risks, and program counts. Use this for "how many megawatts are in our pipeline".',
     parameters: {
       type: 'object',
       properties: {},
@@ -290,10 +303,12 @@ export const agentTools = [
     parameters: {
       type: 'object',
       properties: {
-        status: {
+        // ⚠ THE SAME SIX STAGES AS A PROJECT as of 10-30 — one vocabulary for
+        // both pipelines. This held the retired nine-member opportunity list.
+        stage: {
           type: 'string',
-          enum: ['identified', 'evaluating', 'in_discussion', 'due_diligence', 'negotiating', 'agreement', 'closed_won', 'closed_passed'],
-          description: 'Filter by pipeline status',
+          enum: [...STAGES],
+          description: 'Filter by deal stage',
         },
         opp_type: {
           type: 'string',
@@ -892,6 +907,21 @@ async function executeToolCallInner(
       const allProjects = projects.data ?? []
       const totalValue = allProjects.reduce((sum, p) => sum + (p.estimated_value ?? 0), 0)
 
+      /*
+        ⚠ THE CAPACITY TOTAL GOES THROUGH `portfolioPower`, NOT A `reduce`.
+        This set is read straight from `projects`, so it holds programs AND
+        their sub-projects at once and a flat sum counts the same megawatts
+        twice — the exact bug `pipeline-value.ts` was written for, and the
+        agent is a reader like any other. (The money line above IS a flat
+        reduce and is wrong in that way today; it is left alone here rather
+        than changed in passing, and noted in the log.)
+
+        ⚠ AND THE FIGURE IS HANDED OVER ALREADY SUMMED. §12: never make the
+        model count rows — handed a 69-row schedule it answered 62.
+      */
+      const powerPhases = await readPhaseRows(allProjects.map((p) => p.id))
+      const capacity = portfolioPower(allProjects, phaseLookup(powerPhases))
+
       // Identify programs (projects that have children)
       const parentIds = new Set(allProjects.map((p) => p.parent_project_id).filter(Boolean))
       const programs = allProjects.filter((p) => parentIds.has(p.id))
@@ -902,7 +932,10 @@ async function executeToolCallInner(
       const bySector: Record<string, number> = {}
       for (const p of allProjects) {
         byStatus[p.status ?? 'active'] = (byStatus[p.status ?? 'active'] ?? 0) + 1
-        byStage[p.stage ?? 'pursuit'] = (byStage[p.stage ?? 'pursuit'] ?? 0) + 1
+        // `stage` is NOT NULL since 10-30, so the coalesce that stood here
+        // was a renderer-side default — and after the rename it was inventing
+        // a bucket named after a stage that no longer exists.
+        byStage[p.stage] = (byStage[p.stage] ?? 0) + 1
         bySector[p.sector] = (bySector[p.sector] ?? 0) + 1
       }
 
@@ -911,6 +944,12 @@ async function executeToolCallInner(
         program_count: programs.length,
         standalone_count: standaloneCount,
         total_estimated_value: totalValue,
+        // The platform's key metric. `_note` travels with it because a bare
+        // figure invites the model to re-derive or re-label it.
+        total_capacity_mw: capacity.megawatts,
+        capacity_coverage: powerCoverageNote(capacity) ?? 'every project scheduled',
+        capacity_note:
+          'Total ramp-up capacity in megawatts, summed across each deal once (a program counts its sub-projects, never itself as well). Projects with no ramp schedule contribute nothing.',
         by_status: byStatus,
         by_stage: byStage,
         by_sector: bySector,
@@ -1156,7 +1195,18 @@ async function executeToolCallInner(
         .order('name')
 
       if (args.sector) q = q.eq('sector', args.sector as Database['public']['Enums']['project_sector'])
-      if (args.stage) q = q.eq('stage', args.stage as Database['public']['Enums']['project_stage'])
+      /*
+        ⚠ NARROWED, NEVER CAST. `args.stage` is whatever the MODEL typed, and a
+        value outside the enum fails the WHOLE query rather than the row (§12):
+        Postgres answers `22P02`, PostgREST returns a null row set, and the
+        agent reports "no projects" — the one answer indistinguishable from a
+        correct empty result. The old `as Enums<'project_stage'>` made that a
+        compile-time non-event. It was live the whole time the vocabulary held
+        pursuit/capture/bid, because the model had no sight of the enum.
+        An unrecognised stage now narrows away and the filter is simply not
+        applied, which is wrong in the safe direction: too many rows, never none.
+      */
+      if (isDealStage(args.stage)) q = q.eq('stage', args.stage)
       if (args.status) q = q.eq('status', args.status as Database['public']['Enums']['project_status'])
 
       const { data: allProjects, error } = await q
@@ -1171,9 +1221,17 @@ async function executeToolCallInner(
 
       const totalValue = projects.reduce((sum, p) => sum + (p.estimated_value ?? 0), 0)
 
+      // Capacity per project and for the set. `subtreePower` so a program
+      // reports its sub-projects' megawatts and not its own as well.
+      const listPhases = await readPhaseRows(projects.map((p) => p.id))
+      const listLookup = phaseLookup(listPhases)
+      const listCapacity = portfolioPower(projects, listLookup)
+
       return {
         count: projects.length,
         total_estimated_value: totalValue,
+        total_capacity_mw: listCapacity.megawatts,
+        capacity_coverage: powerCoverageNote(listCapacity) ?? 'every project scheduled',
         projects: projects.map(p => ({
           id: p.id,
           name: p.name,
@@ -1181,6 +1239,10 @@ async function executeToolCallInner(
           status: p.status,
           stage: p.stage,
           estimated_value: p.estimated_value,
+          // null, never 0 — "nobody has scheduled this" and "zero megawatts"
+          // are different answers and the model must be able to tell them
+          // apart (§12).
+          capacity_mw: subtreePower(p, projects, listLookup).megawatts,
           location: p.location,
           client_entity: p.client_entity,
           solicitation_number: p.solicitation_number,
@@ -1416,11 +1478,12 @@ async function executeToolCallInner(
     case 'list_opportunities': {
       let q = supabase
         .from('opportunities')
-        .select('id, name, opp_type, status, priority, target_name, counterparty, sector, estimated_value, probability, lead, next_step, target_close_date, updated_at')
+        .select('id, name, opp_type, stage, status, priority, target_name, counterparty, sector, estimated_value, probability, lead, next_step, target_close_date, updated_at')
         .order('updated_at', { ascending: false })
         .limit(25)
 
-      if (args.status) q = q.eq('status', args.status as string)
+      // Narrowed, never cast — see the note on list_projects' stage filter.
+      if (isDealStage(args.stage)) q = q.eq('stage', args.stage)
       if (args.opp_type) q = q.eq('opp_type', args.opp_type as string)
       if (args.priority) q = q.eq('priority', args.priority as string)
 
@@ -1434,7 +1497,10 @@ async function executeToolCallInner(
           id: o.id,
           name: o.name,
           type: o.opp_type,
-          status: o.status,
+          // ⚠ THE LABEL, NOT THE TOKEN (§12). And both fields, named apart:
+          // `stage` is the pipeline, `status` only says whether it is parked.
+          stage: STAGE_LABELS[oppStage(o.stage)],
+          parked: o.status === 'on_hold',
           priority: o.priority,
           target: o.target_name,
           counterparty: o.counterparty,

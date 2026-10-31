@@ -1,3 +1,4 @@
+import { STAGE_ENUM_FOR_PROMPT } from '@/lib/utils/constants'
 /**
  * Email Ingestion extraction prompt.
  *
@@ -55,7 +56,7 @@ export interface EmailIntakeProject {
   name: string | null
   /** government | infrastructure | real_estate | prefab | institutional | technology | health */
   sector: string | null
-  /** pursuit | capture | bid | award | mobilization | execution | closeout */
+  /** A member of `deal_stage` — see STAGE_ENUM_FOR_PROMPT. */
   stage: string | null
   description: string | null
   estimated_value: number | null
@@ -89,7 +90,7 @@ Your job is to turn that raw package into ONE proposed CRM record so an executiv
 Set "suggested_record" accordingly. When in doubt, choose "project" — partnerships, joint ventures, and teaming arrangements that exist to pursue or deliver built work are projects, not opportunities. Fill in BOTH the "opportunity" and "project" objects as completely as the text supports (leave unknown fields null) so the reviewer can switch kinds without losing information. Use only values from these enumerations:
 - opp_type: acquisition | partnership | joint_venture | investment | merger | divestiture | teaming | market_entry | other
 - sector: government | infrastructure | real_estate | prefab | institutional | technology | health
-- stage: pursuit | capture | bid | award | mobilization | execution | closeout
+- stage: ${STAGE_ENUM_FOR_PROMPT}
 
 Extract every distinguishable person and organization into "people" (set is_organization=true for companies). Give each a short role describing how they relate to this deal. Turn concrete action items and next steps into "tasks" with a crisp title and, where the text supports it, what/why/how, a due_date (YYYY-MM-DD), and a best-guess assignee name.
 

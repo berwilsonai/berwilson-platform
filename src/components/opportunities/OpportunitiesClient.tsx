@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Kanban, LayoutGrid } from 'lucide-react'
@@ -9,11 +9,13 @@ import type { Opportunity } from '@/lib/supabase/types'
 import { useStoredState } from '@/hooks/use-stored-state'
 import { Segmented } from '@/components/ui/segmented'
 import {
-  type OpportunityStatus,
-  OPPORTUNITY_STATUS_LABELS,
+  OPPORTUNITY_STAGE_LABELS,
 } from '@/lib/utils/opportunities'
 import OpportunityCards from './OpportunityCards'
 import OpportunityBoard from './OpportunityBoard'
+import { phaseLookup, powerTotal } from '@/lib/records/power'
+import type { PhaseRow } from '@/lib/records/power-read'
+import type { DealStage } from '@/lib/supabase/types'
 
 type View = 'board' | 'grid'
 
@@ -37,10 +39,19 @@ type View = 'board' | 'grid'
 export default function OpportunitiesClient({
   opportunities,
   canDelete = false,
+  phases = [],
 }: {
   opportunities: Opportunity[]
   canDelete?: boolean
+  /**
+   * Every ramp phase for the opportunities above, as plain rows.
+   *
+   * ⚠ ROWS, NOT A LOOKUP — a `PhaseLookup` is a closure and a server component
+   * may hand a client only plain data. Rebuilt here once, in a memo.
+   */
+  phases?: PhaseRow[]
 }) {
+  const powerOf = useMemo(() => phaseLookup(phases), [phases])
   const router = useRouter()
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set())
   const [view, setView] = useStoredState<View>('bw.opportunities.view', 'board')
@@ -79,7 +90,7 @@ export default function OpportunitiesClient({
   }, [router])
 
   const onMoved = useCallback(
-    async (id: string, status: OpportunityStatus) => {
+    async (id: string, status: DealStage) => {
       const res = await fetch(`/api/opportunities/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -87,11 +98,11 @@ export default function OpportunitiesClient({
       })
       if (!res.ok) {
         const { error } = await res.json().catch(() => ({ error: null }))
-        toast.error(error ?? `Could not move to ${OPPORTUNITY_STATUS_LABELS[status]}`)
+        toast.error(error ?? `Could not move to ${OPPORTUNITY_STAGE_LABELS[status]}`)
         // Throwing is the signal that rolls the card back to where it was.
         throw new Error('status move failed')
       }
-      toast.success(`Moved to ${OPPORTUNITY_STATUS_LABELS[status]}`)
+      toast.success(`Moved to ${OPPORTUNITY_STAGE_LABELS[status]}`)
       scheduleRefresh()
     },
     [scheduleRefresh]
@@ -119,9 +130,15 @@ export default function OpportunitiesClient({
           canDelete={canDelete}
           onDeleted={onDeleted}
           onMoved={onMoved}
+          powerOf={powerOf}
         />
       ) : (
-        <OpportunityCards opportunities={shown} canDelete={canDelete} onDeleted={onDeleted} />
+        <OpportunityCards
+          opportunities={shown}
+          canDelete={canDelete}
+          onDeleted={onDeleted}
+          powerOf={(id) => powerTotal(powerOf(id))}
+        />
       )}
     </div>
   )

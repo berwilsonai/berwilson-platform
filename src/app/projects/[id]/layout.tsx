@@ -11,7 +11,10 @@ import RecordLogMenu from '@/components/records/RecordLogMenu'
 import GenerateBriefButton from '@/components/projects/GenerateBriefButton'
 import ProjectProtection from '@/components/security/ProjectProtection'
 import TrackVisit from '@/components/shared/TrackVisit'
+import InlineField from '@/components/projects/InlineField'
 import RecordPager from '@/components/records/RecordPager'
+import { PowerFigure } from '@/components/records/PowerFigure'
+import { readRecordPower } from '@/lib/records/power-read'
 import { PROJECT_TABS } from '@/components/records/tabs'
 import { getViewer, canAccessProject } from '@/lib/auth/viewer'
 import { parcelDb } from '@/lib/parcels/queries'
@@ -88,7 +91,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
   }
 
   const status = project.status ?? 'active'
-  const stage = project.stage ?? 'pursuit'
+  const stage = project.stage
 
   /**
    * Diligence completeness, BESIDE the stage and not instead of it.
@@ -105,6 +108,10 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
   const room = project.data_room_template === 'data_center'
     ? await readRoomStatus('project', id).catch(() => null)
     : null
+
+  // The ramp-up total for the header — rolled up from sub-projects where there
+  // are any, so it cannot disagree with the figure /projects shows.
+  const power = await readRecordPower('project', id)
 
   return (
     <div className="space-y-0">
@@ -125,6 +132,16 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           <div className="min-w-0">
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-semibold leading-tight truncate">{project.name}</h1>
+              {/*
+                ⚠ THE KEY METRIC, BESIDE THE NAME (Richard, 10-30: *"I want that
+                total of MW displayed on every project in a prominent place…
+                shown by the project name. It is the key metric."*). It renders
+                nothing at all on a deal with no ramp schedule — most of the
+                portfolio — rather than a placeholder, because an `inline`
+                PowerFigure over a null total is null by design: a bare em dash
+                at a figure's own weight reads as a failed render (§12).
+              */}
+              <PowerFigure total={power} className="shrink-0" />
               <div className="shrink-0">
                 <RecordPager kind="project" currentId={id} />
               </div>
@@ -162,10 +179,47 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           </div>
         </div>
 
-        {/* Stage / sector / status — what the record IS, under its name. */}
+        {/*
+          Stage / sector / status — what the record IS, under its name.
+
+          ⚠ THE FIRST THREE ARE EDITABLE WHERE THEY ARE READ (Richard, 10-30).
+          Moving a deal to the next stage was previously either a drag on the
+          /projects board or a trip through the Edit form; on the record itself
+          — where somebody has just finished reading the brief that tells them
+          it has moved — there was no way to do it at all. Double-click the
+          chip, or press the pencil.
+
+          The chips keep their badge tones, so nothing about the row reads
+          differently until you reach for it.
+        */}
         <div className="flex items-center gap-2 flex-wrap">
-          <Chip tone={STAGE_BADGE[stage]}>{STAGE_LABELS[stage]}</Chip>
-          <Chip tone={SECTOR_BADGE[project.sector]}>{SECTOR_LABELS[project.sector]}</Chip>
+          <InlineField
+            projectId={id}
+            field="stage"
+            value={stage}
+            labelled={false}
+            display={<Chip tone={STAGE_BADGE[stage]}>{STAGE_LABELS[stage]}</Chip>}
+          />
+          <InlineField
+            projectId={id}
+            field="sector"
+            value={project.sector}
+            labelled={false}
+            display={<Chip tone={SECTOR_BADGE[project.sector]}>{SECTOR_LABELS[project.sector]}</Chip>}
+          />
+          <InlineField
+            projectId={id}
+            field="status"
+            value={project.status}
+            labelled={false}
+            /* ⚠ SHOWN EVEN WHEN ACTIVE, unlike the chip further down that this
+               replaces. That chip was hidden on `status !== 'active'` — right
+               for reading, since "Active" on every one of 24 records tells you
+               nothing, and wrong the moment it is the control for parking a
+               deal: the door to On Hold would exist only on deals already on
+               hold. §12, the same rule as the empty surfaces above. */
+            display={<Chip tone={STATUS_BADGE[status]}>{STATUS_LABELS[status]}</Chip>}
+          />
           {room ? (
             <Link href={`/projects/${id}/data-room`}>
               {/*
@@ -189,9 +243,6 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
               </Chip>
             </Link>
           ) : null}
-          {status !== 'active' && (
-            <Chip tone={STATUS_BADGE[status]}>{STATUS_LABELS[status]}</Chip>
-          )}
           {/* /map is admin-only, so only admins get the link */}
           {viewer?.isAdmin && (project.latitude != null || project.map_geometry != null) && (
             <Link

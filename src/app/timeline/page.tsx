@@ -1,6 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import TimelineView, { type TimelineRow, type TimelineMarker } from '@/components/timeline/TimelineView'
-import type { ProjectStage } from '@/lib/supabase/types'
 import { dropHidden } from '@/lib/security/confidential'
 import { viewerHiddenProjectIds } from '@/lib/security/request'
 
@@ -56,7 +55,7 @@ export default async function TimelinePage() {
     rows.push({
       id: p.id,
       name: p.name,
-      stage: (p.stage ?? 'pursuit') as ProjectStage,
+      stage: p.stage,
       estimatedValue: p.estimated_value,
       markers,
     })

@@ -32,6 +32,7 @@ import { INDEXED_IN_MAIL } from '@/lib/documents/status'
 // Pure, and in its own module precisely so this card can classify a file
 // without importing the AI pipeline behind it.
 import { documentKind } from '@/lib/ai/document-kinds'
+import { STAGE_CLOSED } from '@/lib/utils/constants'
 import { leadsDb } from '@/lib/leads/db'
 import { sweepDb } from '@/lib/email-sweep/db'
 
@@ -753,7 +754,21 @@ async function darkRecords(): Promise<string[]> {
       admin
         .from('opportunities')
         .select('id, name, match_aliases')
-        .not('status', 'in', '("closed_won","closed_lost")'),
+        /*
+          ⚠ THIS FILTER MATCHED EVERY ROW, AND DID SO BEFORE 10-30 TOO.
+
+          It excluded `closed_won` and `closed_lost` — and `closed_lost` was
+          never a member of anything; the old vocabulary's terminal pair was
+          `closed_won` / `closed_passed`. §12: a `<>`/`not in` against a value
+          the column never holds is true for every row and looks exactly like a
+          result, which is how `status <> 'completed'` once reported 146 open
+          tasks against a real 41. So every passed opportunity has been
+          counting as a "dark record" here all along.
+
+          Now it asks the question it meant, on the column that answers it:
+          the pipeline is `stage`, and the terminal pair is `STAGE_CLOSED`.
+        */
+        .not('stage', 'in', `(${STAGE_CLOSED.join(',')})`),
       sweepDb().from('thread_links').select('record_id'),
     ])
 

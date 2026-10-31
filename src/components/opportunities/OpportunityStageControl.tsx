@@ -3,16 +3,26 @@
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useApiCall } from '@/hooks/use-api-call'
-import { OPPORTUNITY_STATUSES, OPPORTUNITY_STATUS_LABELS } from '@/lib/utils/opportunities'
+import { OPPORTUNITY_STAGES, OPPORTUNITY_STAGE_LABELS } from '@/lib/utils/opportunities'
 
-interface OpportunityStatusControlProps {
+interface OpportunityStageControlProps {
   opportunityId: string
-  status: string
+  stage: string
 }
 
-export default function OpportunityStatusControl({ opportunityId, status }: OpportunityStatusControlProps) {
+/**
+ * Move an opportunity along the pipeline.
+ *
+ * ⚠ IT WRITES `stage`, AND IT USED TO WRITE `status`. The pipeline lived in
+ * `opportunities.status` until 2026-10-30; this control sent the chosen value
+ * there, which after the split would have been refused outright by
+ * `opportunities_status_check` — a 500 on every single stage change, from a
+ * control whose own optimistic update made the screen look like it had worked
+ * until the toast arrived. The field name is the whole fix.
+ */
+export default function OpportunityStageControl({ opportunityId, stage }: OpportunityStageControlProps) {
   const { busy, call } = useApiCall()
-  const [value, setValue] = useState(status)
+  const [value, setValue] = useState(stage)
 
   /**
    * The select shows the new status before the server has agreed to it, which
@@ -24,11 +34,11 @@ export default function OpportunityStatusControl({ opportunityId, status }: Oppo
   async function change(next: string) {
     const previous = value
     setValue(next)
-    const ok = await call('status', `/api/opportunities/${opportunityId}`, 'PATCH', { status: next })
+    const ok = await call('stage', `/api/opportunities/${opportunityId}`, 'PATCH', { stage: next })
     if (!ok) setValue(previous)
   }
 
-  const saving = busy === 'status'
+  const saving = busy === 'stage'
 
   return (
     <div className="inline-flex items-center gap-1.5">
@@ -36,12 +46,12 @@ export default function OpportunityStatusControl({ opportunityId, status }: Oppo
         value={value}
         onChange={(e) => change(e.target.value)}
         disabled={saving}
-        aria-label="Opportunity status"
+        aria-label="Opportunity stage"
         className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60"
       >
-        {OPPORTUNITY_STATUSES.map((s) => (
+        {OPPORTUNITY_STAGES.map((s) => (
           <option key={s} value={s}>
-            {OPPORTUNITY_STATUS_LABELS[s]}
+            {OPPORTUNITY_STAGE_LABELS[s]}
           </option>
         ))}
       </select>

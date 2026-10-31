@@ -5,9 +5,9 @@ import { dropHidden } from '@/lib/security/confidential'
 import { viewerHiddenProjectIds } from '@/lib/security/request'
 import {
   oppType,
-  oppStatus,
+  oppStage,
   OPPORTUNITY_TYPE_LABELS,
-  OPPORTUNITY_STATUS_LABELS,
+  OPPORTUNITY_STAGE_LABELS,
 } from '@/lib/utils/opportunities'
 import {
   investorStage,
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       .limit(6),
     supabase
       .from('opportunities')
-      .select('id, name, opp_type, status')
+      .select('id, name, opp_type, stage')
       .ilike('name', pattern)
       .order('updated_at', { ascending: false })
       .limit(6),
@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
       title: o.name,
       subtitle: [
         OPPORTUNITY_TYPE_LABELS[oppType(o.opp_type)],
-        OPPORTUNITY_STATUS_LABELS[oppStatus(o.status)],
+        OPPORTUNITY_STAGE_LABELS[oppStage(o.stage)],
       ].filter(Boolean).join(' · ') || null,
       href: `/opportunities/${o.id}`,
     })

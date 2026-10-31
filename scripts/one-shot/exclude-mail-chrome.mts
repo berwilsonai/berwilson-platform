@@ -18,7 +18,7 @@
  * Dry by default. Pass --apply to write.
  */
 import { createAdminClient } from '@/lib/supabase/admin'
-import { isMailChrome } from '@/lib/email-sweep/apply-phase'
+import { isMailChrome } from '@/lib/email-sweep/attachment-hygiene'
 import { isFileable } from '@/lib/drive/file-document'
 import { excludeDocument, type DocumentSource } from '@/lib/documents/refile'
 

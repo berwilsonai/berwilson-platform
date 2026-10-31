@@ -1,3 +1,5 @@
+import { STAGES, STATUSES } from '@/lib/utils/constants'
+import { OPPORTUNITY_ACTIVITY } from '@/lib/utils/opportunities'
 /**
  * Which fields an autonomous pass may write, and which it must ask about.
  *
@@ -57,13 +59,27 @@ export const PROJECT_SECTORS = [
   'government', 'infrastructure', 'real_estate', 'prefab', 'institutional', 'technology', 'health',
 ] as const
 
-/** Live members of `project_stage`. */
-export const PROJECT_STAGES = [
-  'pursuit', 'capture', 'bid', 'award', 'mobilization', 'execution', 'closeout',
-] as const
-
-/** Live members of `project_status`. */
-export const PROJECT_STATUSES = ['active', 'on_hold', 'won', 'lost', 'closed'] as const
+/**
+ * ⚠ RE-EXPORTED FROM THE VOCABULARY, NOT RETYPED (10-30).
+ *
+ * These were two literal `as const` arrays — a third and fourth copy of the
+ * stage and status enumerations, in a module whose entire job is to stop an
+ * unattended pass writing a value the enum does not hold. They were wrong the
+ * moment the enums changed, and `allowedValues` would then have REFUSED every
+ * legitimate value while accepting none: the curator would have reported
+ * nothing to do, forever, with no error (§12 — a gate nobody can see).
+ *
+ * `scripts/verify-provenance-registry.mts` checks every entry here against
+ * `information_schema` and every enum guard against the live enum members,
+ * which is the other half of the same guarantee — verified green on 10-30 for
+ * `deal_stage` on BOTH tables.
+ *
+ * Aliased consts rather than `export … from`, so the two names this module has
+ * always published keep working for their callers while the values come from
+ * the one registry.
+ */
+export const PROJECT_STAGES = STAGES
+export const PROJECT_STATUSES = STATUSES
 
 /**
  * The whitelist, per table.
@@ -99,8 +115,8 @@ export const WRITABLE_FIELDS: Record<string, Record<string, FieldSpec>> = {
     // before any write. A model's plausible-sounding "energy" would otherwise
     // take down the update for every other field on the record.
     sector: { tier: 'open', label: 'Sector', allowedValues: PROJECT_SECTORS },
-    stage: { tier: 'guarded', label: 'Stage', allowedValues: PROJECT_STAGES },
-    status: { tier: 'guarded', label: 'Status', allowedValues: PROJECT_STATUSES },
+    stage: { tier: 'guarded', label: 'Stage', allowedValues: STAGES },
+    status: { tier: 'guarded', label: 'Status', allowedValues: STATUSES },
     win_probability: { tier: 'guarded', label: 'Win probability' },
     bid_due_date: { tier: 'guarded', label: 'Bid due date' },
     estimated_value: { tier: 'guarded', label: 'Estimated value' },
@@ -119,7 +135,12 @@ export const WRITABLE_FIELDS: Record<string, Record<string, FieldSpec>> = {
     // every entry here against information_schema so it cannot drift again.
     next_step: { tier: 'open', label: 'Next step' },
     sector: { tier: 'open', label: 'Sector' },
-    status: { tier: 'guarded', label: 'Status' },
+    // ⚠ TWO COLUMNS SINCE 10-30, and `stage` is the one that moves the deal.
+    // `opportunities.status` carried the nine-stage pipeline and now carries
+    // active|on_hold behind a CHECK, so a pass writing a pipeline value into
+    // it is refused outright (`23514`) — taking the whole update with it.
+    stage: { tier: 'guarded', label: 'Stage', allowedValues: STAGES },
+    status: { tier: 'guarded', label: 'Status', allowedValues: OPPORTUNITY_ACTIVITY },
     priority: { tier: 'guarded', label: 'Priority' },
     probability: { tier: 'guarded', label: 'Probability' },
     estimated_value: { tier: 'guarded', label: 'Estimated value' },

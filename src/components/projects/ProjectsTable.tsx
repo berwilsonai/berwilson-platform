@@ -7,10 +7,13 @@ import { ArrowUpDown, ArrowDown, ArrowUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Chip } from '@/components/ui/chip'
 import { Panel } from '@/components/ui/card'
-import type { Project, ProjectStage } from '@/lib/supabase/types'
+import type { Project, DealStage } from '@/lib/supabase/types'
 import { SECTOR_BADGE, SECTOR_SHORT } from '@/lib/utils/sectors'
 import { STAGE_LABELS, STAGE_COLOR, STATUS_BADGE, STATUS_LABELS, formatValue } from '@/lib/utils/constants'
 import { pipelineValue, rolledPipelineValue } from '@/lib/records/pipeline-value'
+import { phaseLookup, subtreePower } from '@/lib/records/power'
+import type { PhaseRow } from '@/lib/records/power-read'
+import { PowerFigure } from '@/components/records/PowerFigure'
 
 /**
  * The portfolio as a dense, sortable table.
@@ -40,7 +43,7 @@ import { pipelineValue, rolledPipelineValue } from '@/lib/records/pipeline-value
  * module is exactly where it comes back.
  */
 
-type SortKey = 'name' | 'stage' | 'sector' | 'client' | 'value' | 'updated'
+type SortKey = 'name' | 'power' | 'stage' | 'sector' | 'client' | 'value' | 'updated'
 type Dir = 'asc' | 'desc'
 
 const COLUMNS: Array<{
@@ -51,6 +54,18 @@ const COLUMNS: Array<{
   className?: string
 }> = [
   { key: 'name', label: 'Project' },
+  /*
+    ⚠ IMMEDIATELY AFTER THE NAME, AND BEFORE STAGE. Richard, 10-30: the
+    megawatt total *"is the key metric"* and he asked for it *"shown by the
+    project name"*. In a table that means the first column after it — a figure
+    four columns right, behind two `hidden lg:` breakpoints, is not beside
+    anything on the screen most of this is read on.
+    ⚠ AND IT IS NEVER HIDDEN AT A BREAKPOINT. Every other column here drops on
+    a narrow viewport; the key metric is the one that must survive, so the
+    phone layout below carries name + capacity and pushes stage into the
+    sub-line.
+  */
+  { key: 'power', label: 'Capacity', numeric: true, className: 'w-28' },
   { key: 'stage', label: 'Stage', className: 'w-28 hidden md:table-cell' },
   { key: 'sector', label: 'Sector', className: 'w-28 hidden lg:table-cell' },
   { key: 'client', label: 'Client', className: 'w-56 hidden xl:table-cell' },
@@ -71,12 +86,15 @@ function relativeDays(iso: string | null): string {
 export default function ProjectsTable({
   projects,
   allProjects,
+  phases = [],
   isDimmed,
 }: {
   /** The rows to show, already filtered/ranked by the parent. */
   projects: Project[]
   /** The whole set, so a program can roll its value up from leaves not shown. */
   allProjects: Project[]
+  /** Every ramp phase for the set — plain rows; the lookup is built here. */
+  phases?: PhaseRow[]
   /** Search ranking: a non-match stays visible but recedes (never hidden). */
   isDimmed?: (id: string) => boolean
 }) {
@@ -88,15 +106,24 @@ export default function ProjectsTable({
     else {
       setSort(key)
       // Money and dates are far more useful largest-first on the first click.
-      setDir(key === 'value' || key === 'updated' ? 'desc' : 'asc')
+      setDir(key === 'value' || key === 'power' || key === 'updated' ? 'desc' : 'asc')
     }
   }
+
+  const powerOf = useMemo(() => {
+    const lookup = phaseLookup(phases)
+    return (p: Project) => subtreePower(p, allProjects, lookup)
+  }, [phases, allProjects])
 
   const rows = useMemo(() => {
     const valueOf = (p: Project) => rolledPipelineValue(p, allProjects).amount ?? -1
     const by: Record<SortKey, (p: Project) => string | number> = {
       name: (p) => p.name.toLowerCase(),
-      stage: (p) => STAGE_LABELS[p.stage as ProjectStage] ?? '',
+      // −1 for "no schedule", so unscheduled deals sink to the bottom on a
+      // descending sort rather than tying with a real 0 — which the schema
+      // forbids anyway, so the sentinel cannot collide with a stored figure.
+      power: (p) => powerOf(p).megawatts ?? -1,
+      stage: (p) => STAGE_LABELS[p.stage as DealStage] ?? '',
       sector: (p) => p.sector ?? '',
       client: (p) => (p.client_entity ?? '').toLowerCase(),
       value: valueOf,
@@ -109,7 +136,7 @@ export default function ProjectsTable({
       const cmp = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv))
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [projects, allProjects, sort, dir])
+  }, [projects, allProjects, powerOf, sort, dir])
 
   return (
     // `Panel`, not a hand-rolled shell — `conventions.test.ts` caught this on
@@ -142,7 +169,7 @@ export default function ProjectsTable({
         the thing worth giving up for that, not the other way round.
       */}
       <div className="max-lg:overflow-x-auto">
-        <table className="w-full table-fixed text-sm min-w-[52rem]">
+        <table className="w-full table-fixed text-sm min-w-[58rem]">
           {/*
             ⚠ THE HEADER STICKS TO THE SCROLL CONTAINER, NOT THE PAGE. The app
             scrolls in `<main>`, so `top-0` here pins the row to the top of the
@@ -201,7 +228,7 @@ export default function ProjectsTable({
                           so the board's one real signal survives the layout. */}
                       <span
                         aria-hidden
-                        className={cn('size-1.5 shrink-0 rounded-full', STAGE_COLOR[p.stage as ProjectStage] ?? 'bg-muted-foreground')}
+                        className={cn('size-1.5 shrink-0 rounded-full', STAGE_COLOR[p.stage as DealStage] ?? 'bg-muted-foreground')}
                       />
                       <Link
                         href={`/projects/${p.id}`}
@@ -218,11 +245,18 @@ export default function ProjectsTable({
                     {/* Below md the hidden columns have to go somewhere, or a
                         phone shows a list of bare names. */}
                     <p className="mt-0.5 truncate pl-4 text-xs text-muted-foreground md:hidden">
-                      {[STAGE_LABELS[p.stage as ProjectStage], p.client_entity, p.location].filter(Boolean).join(' · ')}
+                      {[STAGE_LABELS[p.stage as DealStage], p.client_entity, p.location].filter(Boolean).join(' · ')}
                     </p>
                   </td>
+                  <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                    {/* `column` variant: a muted dash for absence, never the
+                        words — the header names the quantity and the words
+                        would repeat down every unscheduled row. Same split the
+                        Value column already makes, three columns along. */}
+                    <PowerFigure total={powerOf(p)} variant="column" />
+                  </td>
                   <td className="px-3 py-2.5 hidden md:table-cell">
-                    <span className="block truncate text-muted-foreground">{STAGE_LABELS[p.stage as ProjectStage] ?? '—'}</span>
+                    <span className="block truncate text-muted-foreground">{STAGE_LABELS[p.stage as DealStage] ?? '—'}</span>
                   </td>
                   <td className="px-3 py-2.5 hidden lg:table-cell">
                     {p.sector ? (

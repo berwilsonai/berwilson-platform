@@ -6,6 +6,7 @@ import { embedOpportunitySnapshot } from '@/lib/ai/embeddings'
 import type { TablesInsert } from '@/lib/supabase/types'
 import { getViewer, canAccessOpportunity } from '@/lib/auth/viewer'
 import { requeueThreadsForAliases } from '@/lib/email-sweep/requeue'
+import { oppStage } from '@/lib/utils/opportunities'
 
 export type OpportunityFormState = { error: string } | null
 
@@ -82,7 +83,12 @@ function parseFields(formData: FormData): ParseResult {
     fields: {
       name,
       opp_type,
-      status: str('status') ?? 'identified',
+      // ⚠ TWO COLUMNS NOW. The form's pipeline picker posts `stage`; `status`
+      // is the parking flag and defaults to active. Posting the pipeline into
+      // `status` is what this line used to do, and the CHECK added on 10-30
+      // would now refuse it outright.
+      stage: oppStage(str('stage')),
+      status: str('status') === 'on_hold' ? 'on_hold' : 'active',
       priority: str('priority') ?? 'medium',
       description: str('description'),
       objective: str('objective'),

@@ -38,7 +38,7 @@ import NowObjectivesList, { type NowObjectiveItem } from '../src/components/dash
 import OpportunityCards from '../src/components/opportunities/OpportunityCards'
 import { Segmented } from '../src/components/ui/segmented'
 import type { Opportunity } from '../src/lib/supabase/types'
-import { OPPORTUNITY_STATUSES, OPPORTUNITY_STATUS_LABELS } from '../src/lib/utils/opportunities'
+import { OPPORTUNITY_STAGES, OPPORTUNITY_STAGE_LABELS } from '../src/lib/utils/opportunities'
 
 let pass = 0
 let fail = 0
@@ -170,7 +170,7 @@ const shapes: { label: string; items: Opportunity[]; expect: RegExp[] }[] = [
   },
   {
     label: 'one in every status at once',
-    items: OPPORTUNITY_STATUSES.map((st, i) =>
+    items: OPPORTUNITY_STAGES.map((st, i) =>
       opp({ id: `3333333${i}-3333-3333-3333-333333333333`, name: `Deal ${st}`, status: st })
     ),
     expect: [/Deal identified/, /Deal closed_passed/],
@@ -207,10 +207,10 @@ console.log('\nOpportunity board — the promises the lanes make')
 
   // ⚠ EVERY STATUS KEEPS A COLUMN. A funnel with a missing rung misleads, and
   // the empty one is the stage a deal most often still has to reach.
-  for (const st of OPPORTUNITY_STATUSES) {
+  for (const st of OPPORTUNITY_STAGES) {
     check(
       `the ${st} column is present`,
-      markup.includes(OPPORTUNITY_STATUS_LABELS[st]),
+      markup.includes(OPPORTUNITY_STAGE_LABELS[st]),
       'an absent stage reads as a stage that does not exist'
     )
   }

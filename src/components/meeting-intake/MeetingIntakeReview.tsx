@@ -689,7 +689,7 @@ export default function MeetingIntakeReview({
                         </select>
                       )}
                       {t.kind === 'project' && (
-                        <select className={`${inputCls} h-8`} value={t.fields.stage ?? 'pursuit'} onChange={(e) => setTargetFields(t.ref, { stage: e.target.value })}>
+                        <select className={`${inputCls} h-8`} value={t.fields.stage ?? 'prospecting'} onChange={(e) => setTargetFields(t.ref, { stage: e.target.value })}>
                           {STAGES.map((s) => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
                         </select>
                       )}

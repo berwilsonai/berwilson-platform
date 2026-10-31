@@ -15,7 +15,7 @@ STRUCTURE (follow exactly):
 **[Count] Active Projects | [Total Pipeline Value] | As of [Date]**
 
 ## Portfolio Health
-3-4 sentences. Overall state of the pipeline. How many projects are in execution vs pursuit. Any portfolio-level patterns: concentration risk, resource conflicts, upcoming decision clusters. Lead with the headline.
+3-4 sentences. Overall state of the pipeline. How many deals sit in each stage, and how many are still in Prospecting versus actually in Contracting. Any portfolio-level patterns: concentration risk, resource conflicts, upcoming decision clusters. Lead with the headline.
 
 ## Project Snapshots
 For each active project, a compact summary block:

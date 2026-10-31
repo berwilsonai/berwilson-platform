@@ -17,9 +17,12 @@ import {
   type FederalStandard,
 } from '@/lib/utils/constants'
 import PursuitSnapshot from '@/components/projects/PursuitSnapshot'
+import InlineField from '@/components/projects/InlineField'
 import { coverageNote, pipelineTotal, pipelineValue } from '@/lib/records/pipeline-value'
 import DiligenceChecklist from '@/components/dataroom/DiligenceChecklist'
 import { readRoomStatus } from '@/lib/dataroom/status'
+import PowerRamp from '@/components/records/PowerRamp'
+import { readRecordPhases } from '@/lib/records/power-read'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -31,23 +34,23 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 type EntityProjectWithEntity = EntityProject & { entity: Entity }
 
 /**
- * One labelled fact.
+ * A value an `InlineField` is wrapping, or "Not set" in words.
  *
- * Renders NOTHING when there is no value. A lone em dash sitting under a
- * heading is not information — it reserves space to tell the reader the app
- * has nothing to say, and at a glance it reads like a failed render rather
- * than an unfilled field. Absence is better stated by the row's absence.
+ * ⚠ THIS REPLACED A `Field` COMPONENT THAT RENDERED NOTHING WHEN EMPTY, and
+ * the reasoning is worth keeping because both halves are §12 rules and they
+ * point opposite ways. `Field` omitted an empty row because a bare em dash at
+ * a value's own weight reads as a failed render — correct for a fact somebody
+ * is READING. It inverts for a field somebody is FILLING: an absent row is an
+ * absent door, which is the rule about a surface hidden because it is empty
+ * being hidden exactly when somebody needs to fill it. So the absence is named
+ * in words instead, which is the other half of the same §12 line — omit the
+ * row, OR name the absence. Every row here is now a door, so every row names
+ * its absence.
  */
-function Field({ label, value }: { label: string; value: string | null | undefined }) {
-  if (!value) return null
-  return (
-    <div className="space-y-0.5">
-      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </dt>
-      <dd className="text-sm text-foreground">{value}</dd>
-    </div>
-  )
+function InlineValue({ text }: { text: string | null | undefined }) {
+  return text
+    ? <span className="text-sm text-foreground">{text}</span>
+    : <span className="text-sm text-muted-foreground">Not set</span>
 }
 
 function activityRecordLink(tableName: string, recordId: string | null, projectId: string): string | null {
@@ -125,6 +128,11 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
   ])
 
   if (!project) notFound()
+
+  // The record's own phases, for the editor. The rolled-up TOTAL is computed
+  // in the layout (one place, so the header and /projects cannot disagree);
+  // this is the schedule itself, which is always the record's own.
+  const rampPhases = await readRecordPhases('project', id)
 
   /**
    * The diligence checklist, for the collapsed card at the top of the left
@@ -233,40 +241,113 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
         }
       />
 
-      {/* Description */}
-      {project.description && (
-        <section className="space-y-2">
-          <h2 className="label-caps text-muted-foreground">
-            Description
-          </h2>
-          <p className="text-sm text-foreground leading-relaxed">{project.description}</p>
-        </section>
-      )}
+      {/*
+        Description.
 
-      {/* Contract & value */}
+        ⚠ IT IS SHOWN WHETHER OR NOT THERE IS ONE, which is a reversal. The
+        section was gated on `project.description` — right for reading, wrong
+        for writing, and §12 names exactly this: a surface hidden because it is
+        empty is hidden exactly when somebody needs to fill it. An empty
+        description was only reachable through the Edit form, which is the trip
+        this change removes.
+      */}
+      <section className="space-y-2">
+        <InlineField
+          projectId={id}
+          field="description"
+          value={project.description}
+          display={
+            project.description ? (
+              <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
+                {project.description}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                No description yet — double-click to write one.
+              </p>
+            )
+          }
+        />
+      </section>
+
+      {/*
+        Contract & value.
+
+        ⚠ EVERY ROW IS EDITABLE, AND EVERY ROW IS PRESENT (Richard, 10-30:
+        *"Make all those fields editable on a project by double clicking"*).
+        `Field` above renders nothing when there is no value, which is the
+        right call for a fact somebody is reading and the wrong one for a field
+        somebody is filling — so these six go through `InlineField`, which says
+        "Not set" in words and carries its own editor. `Field` is still used
+        for the derived rows further down, which nobody can type into.
+      */}
       <section className="space-y-3">
         <h2 className="label-caps text-muted-foreground">
           Contract
         </h2>
         <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
-          {/* Named by which quantity it is — an unlabelled numeric column
-              once held $57.5B of plainly different quantities (§12). */}
-          <Field
-            label={pipelineValue(project).definition}
-            value={
+          {/* ⚠ THE VALUE IS LABELLED BY WHICH QUANTITY IT IS — an unlabelled
+              numeric column once held $57.5B of plainly different quantities
+              (§12). `pipelineValue` names it; the editor writes the one
+              column that actually exists behind it. */}
+          <InlineField
+            projectId={id}
+            field="estimated_value"
+            value={project.estimated_value}
+            display={
               pipelineValue(project).amount != null
-                ? formatValue(pipelineValue(project).amount)
-                : null
+                ? <span className="text-sm tnum text-foreground">{formatValue(pipelineValue(project).amount)}</span>
+                : <span className="text-sm text-muted-foreground">Not set</span>
             }
           />
-          <Field label="Contract Type" value={enumLabel(project.contract_type, undefined, { empty: '' })} />
-          <Field label="Delivery Method" value={enumLabel(project.delivery_method, undefined, { empty: '' })} />
-          <Field label="Client Entity" value={project.client_entity} />
-          <Field label="Location" value={project.location} />
-          {project.solicitation_number && (
-            <Field label="Solicitation No." value={project.solicitation_number} />
-          )}
+          <InlineField
+            projectId={id}
+            field="contract_type"
+            value={project.contract_type}
+            display={<InlineValue text={enumLabel(project.contract_type, undefined, { empty: '' })} />}
+          />
+          <InlineField
+            projectId={id}
+            field="delivery_method"
+            value={project.delivery_method}
+            display={<InlineValue text={enumLabel(project.delivery_method, undefined, { empty: '' })} />}
+          />
+          <InlineField
+            projectId={id}
+            field="client_entity"
+            value={project.client_entity}
+            display={<InlineValue text={project.client_entity} />}
+          />
+          <InlineField
+            projectId={id}
+            field="location"
+            value={project.location}
+            display={<InlineValue text={project.location} />}
+          />
+          <InlineField
+            projectId={id}
+            field="solicitation_number"
+            value={project.solicitation_number}
+            display={<InlineValue text={project.solicitation_number} />}
+          />
         </dl>
+      </section>
+
+      {/*
+        The ramp-up schedule.
+
+        ⚠ IT SITS ON THE OVERVIEW AND NOT BEHIND A TAB, because the total it
+        produces is the key metric (Richard, 10-30) and the editor is the only
+        door to it. A tab would put the platform's most important number one
+        click further away than the solicitation number above it.
+
+        ⚠ AND IT IS RENDERED WHETHER OR NOT THERE IS A SCHEDULE — §12: a surface
+        hidden because it is empty is hidden exactly when somebody needs to fill
+        it. Sixteen power deals have nothing here yet, and count-gating would
+        hide the button from every one of them.
+      */}
+      <section>
+        <PowerRamp kind="project" recordId={id} phases={rampPhases} />
       </section>
 
       {/* Sub-Projects (for programs) */}
@@ -358,24 +439,31 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* Competitive landscape */}
+      {/*
+        Competitive landscape.
+
+        ⚠ THE SECTION IS ALWAYS PRESENT NOW, and the two editable fields inside
+        it always are too. It was gated on there being an incumbent, a
+        competitor or a strategy — so on a deal with none of the three there
+        was no door to record the first one (§12). `competitors` keeps its own
+        count gate: it is a jsonb array with its own editor on the Edit form,
+        not an inline field, so an empty list has nothing to offer here.
+      */}
       {(() => {
         const p = project as typeof project & { incumbent?: string | null; competitors?: unknown; win_strategy?: string | null }
         const competitors = parseCompetitors(p.competitors)
-        const hasAny = p.incumbent || competitors.length > 0 || p.win_strategy
-        if (!hasAny) return null
         return (
           <section className="space-y-3">
             <h2 className="label-caps text-muted-foreground">
               Competitive Landscape
             </h2>
             <div className="rounded-lg border border-border p-4 space-y-4">
-              {p.incumbent && (
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">Incumbent</p>
-                  <p className="text-sm text-foreground">{p.incumbent}</p>
-                </div>
-              )}
+              <InlineField
+                projectId={id}
+                field="incumbent"
+                value={p.incumbent}
+                display={<InlineValue text={p.incumbent} />}
+              />
               {competitors.length > 0 && (
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
@@ -393,14 +481,18 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
                   </div>
                 </div>
               )}
-              {p.win_strategy && (
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
-                    Win Strategy / Discriminators
-                  </p>
-                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{p.win_strategy}</p>
-                </div>
-              )}
+              <InlineField
+                projectId={id}
+                field="win_strategy"
+                value={p.win_strategy}
+                display={
+                  p.win_strategy ? (
+                    <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{p.win_strategy}</p>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Not set</span>
+                  )
+                }
+              />
             </div>
           </section>
         )

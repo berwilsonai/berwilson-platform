@@ -453,7 +453,7 @@ export async function promoteLead(
         name: lead.title,
         sector: toSector(lead.sector),
         // The gate: promoting means we are going after it.
-        stage: 'pursuit',
+        stage: 'prospecting',
         status: 'active',
         description: originNote(lead),
         estimated_value: lead.estimated_value,
@@ -531,7 +531,12 @@ export async function promoteLead(
       .insert({
         name: lead.title,
         opp_type: 'partnership',
-        status: 'identified',
+        // ⚠ `stage`, NOT `status: 'identified'` (fixed 10-30). The pipeline
+        // moved off `status` and `opportunities_status_check` now allows only
+        // active|on_hold, so the old line was `23514` on EVERY automatic
+        // opportunity creation — which fails the whole insert, not the field.
+        stage: 'prospecting',
+        status: 'active',
         description: originNote(lead),
         objective: lead.summary,
         counterparty: lead.sender_company,
