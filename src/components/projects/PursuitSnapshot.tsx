@@ -1,11 +1,10 @@
-import { Timer, Percent, UserRound, Gavel, CalendarDays } from 'lucide-react'
+import { Timer, Percent, UserRound, CalendarDays } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Project, DealStage } from '@/lib/supabase/types'
 import {
   formatValue, formatDate,
   bidDueLabel, bidDueColor, daysUntilDate,
   pwinBadge, weightedValue,
-  bidDecision, BID_DECISION_LABELS, BID_DECISION_BADGE,
   STAGE_PIPELINE,
   winBand, winBandLabel, WIN_BAND_COLOR,
 } from '@/lib/utils/constants'
@@ -15,7 +14,6 @@ import InlineField from './InlineField'
 type ProjectWithCapture = Project & {
   bid_due_date?: string | null
   win_probability?: number | null
-  bid_decision?: string | null
   capture_lead?: string | null
 }
 
@@ -41,7 +39,6 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
   const bidDueDays = daysUntilDate(bidDue)
   const winProb = project.win_probability ?? null
   const band = winBand(winProb)
-  const decision = bidDecision(project.bid_decision)
   // Whichever figure this project actually has, named on screen below.
   const value = pipelineValue(project)
   const weighted = weightedValue(value.amount, winProb)
@@ -81,25 +78,6 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
           </span>
         </div>
         <div className="divide-y divide-border">
-          {/* Bid decision */}
-          <div className="flex items-center justify-between gap-2 px-4 py-2.5">
-            <span className="text-xs text-muted-foreground inline-flex items-center gap-1.5 shrink-0">
-              <Gavel size={12} /> Decision
-            </span>
-            <InlineField
-              projectId={project.id}
-              field="bid_decision"
-              value={project.bid_decision ?? null}
-              labelled={false}
-              className="min-w-0"
-              display={
-                <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset', BID_DECISION_BADGE[decision])}>
-                  {BID_DECISION_LABELS[decision]}
-                </span>
-              }
-            />
-          </div>
-
           {/*
             Win probability — LOW / MEDIUM / HIGH (Richard, 10-30).
 
@@ -196,14 +174,24 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
       </div>
 
       {/*
-        Key dates.
+        Key dates — BID DUE AND AWARD, and only those two.
 
-        ⚠ ALL FOUR ARE LISTED NOW, NOT ONLY THE ONES THAT ARE SET. This card
-        filtered to dates that had a value, which is §12's rule about a surface
-        hidden because it is empty being hidden exactly when somebody needs to
-        fill it: the only way to set an NTP date was the edit form, which is
-        the trip this whole change removes. An unset date says "Not set" in
-        words rather than as a bare em dash, which reads as a failed render.
+        ⚠ NTP AND SUBSTANTIAL COMPLETION WERE REMOVED 2026-10-31, columns and
+        all, on Richard's second asking. Measured first: both were null on 24
+        of 24 projects, so the rows this card gained on 10-30 had never once
+        shown a date and never would — Ber Wilson tracks delivery on
+        `milestones`, which is a table, not two scalars on the deal.
+
+        ⚠ THE 10-30 SESSION READ *"get rid of"* AS *"make easier to set"* and
+        rendered all four unconditionally, citing §12's rule that a surface
+        hidden because it is empty is hidden exactly when somebody needs to
+        fill it. That rule is about a field somebody WANTS to fill; it is not a
+        reason to keep a field nobody has ever filled. The question to ask
+        first is whether the field is wanted at all.
+
+        Both remaining rows still render when unset, which is the part of that
+        reasoning that was right: an unset date says "Not set" in words rather
+        than as a bare em dash, which reads as a failed render.
       */}
       <div className="rounded-lg border border-border bg-card overflow-hidden">
         <div className="px-4 py-2.5 border-b border-border bg-muted/30">
@@ -215,13 +203,6 @@ export default function PursuitSnapshot({ project }: { project: ProjectWithCaptu
           {([
             { field: 'bid_due_date', label: 'Bid Due', value: bidDue, highlight: true },
             { field: 'award_date', label: 'Award', value: project.award_date, highlight: false },
-            { field: 'ntp_date', label: 'NTP', value: project.ntp_date, highlight: false },
-            {
-              field: 'substantial_completion_date',
-              label: 'Substantial Completion',
-              value: project.substantial_completion_date,
-              highlight: false,
-            },
           ] as const).map((d) => (
             <div key={d.field} className="flex items-center justify-between gap-2 px-4 py-2">
               <span className="text-xs text-muted-foreground shrink-0">{d.label}</span>

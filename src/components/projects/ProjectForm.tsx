@@ -269,23 +269,6 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
               className={inputClass}
             />
           </div>
-
-          {/* Go / No-Go decision */}
-          <div>
-            <label htmlFor="bid_decision" className={labelClass}>
-              Bid Decision
-            </label>
-            <select
-              id="bid_decision"
-              name="bid_decision"
-              defaultValue={project?.bid_decision ?? 'undecided'}
-              className={inputClass}
-            >
-              <option value="undecided">Go / No-Go Pending</option>
-              <option value="pursue">Bid (Pursue)</option>
-              <option value="no_bid">No-Bid</option>
-            </select>
-          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -538,28 +521,6 @@ export default function ProjectForm({ mode, project, redirectAfterCreate, availa
               id="award_date"
               name="award_date"
               defaultValue={project?.award_date ?? ''}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="ntp_date" className={labelClass}>
-              NTP Date
-            </label>
-            <DatePicker
-              id="ntp_date"
-              name="ntp_date"
-              defaultValue={project?.ntp_date ?? ''}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="substantial_completion_date" className={labelClass}>
-              Substantial Completion
-            </label>
-            <DatePicker
-              id="substantial_completion_date"
-              name="substantial_completion_date"
-              defaultValue={project?.substantial_completion_date ?? ''}
             />
           </div>
         </div>

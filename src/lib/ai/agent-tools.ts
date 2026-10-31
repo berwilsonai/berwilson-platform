@@ -112,7 +112,7 @@ export const agentTools = [
         fields: {
           type: 'array',
           items: { type: 'string' },
-          description: 'List of field names to retrieve (e.g. ["name", "estimated_value", "stage", "ntp_date"])',
+          description: 'List of field names to retrieve (e.g. ["name", "estimated_value", "stage", "bid_due_date"])',
         },
       },
       required: ['project_id', 'fields'],
@@ -551,7 +551,7 @@ async function executeToolCallInner(
       const validFields = [
         'id', 'name', 'sector', 'status', 'stage', 'description', 'location',
         'client_entity', 'estimated_value', 'contract_type', 'delivery_method',
-        'solicitation_number', 'award_date', 'ntp_date', 'substantial_completion_date',
+        'solicitation_number', 'award_date',
         'created_at', 'updated_at', 'parent_project_id',
       ]
       const safeFields = fields.filter(f => validFields.includes(f))

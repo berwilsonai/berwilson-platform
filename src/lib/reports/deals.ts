@@ -62,7 +62,7 @@ export interface DealRow {
   /** Projects only — the band behind `WIN_BAND_VALUE`. */
   winProbability: number | null
   bidDueDate: string | null
-  /** The date the deal is aiming at: substantial completion, or an opportunity's target close. */
+  /** Opportunities only — their `target_close_date`. Always null on a project (see below). */
   targetDate: string | null
   /** Projects only, internal: who is running capture. */
   captureLead: string | null
@@ -107,7 +107,7 @@ const ROW_CAP = 2000
 
 const PROJECT_COLUMNS =
   'id, name, stage, status, sector, location, client_entity, estimated_value, parent_project_id, ' +
-  'win_probability, bid_due_date, substantial_completion_date, capture_lead, data_room_template, ' +
+  'win_probability, bid_due_date, capture_lead, data_room_template, ' +
   'drive_folder_id, updated_at, created_at, confidential'
 
 const OPPORTUNITY_COLUMNS =
@@ -126,7 +126,6 @@ interface ProjectSelect {
   parent_project_id: string | null
   win_probability: number | null
   bid_due_date: string | null
-  substantial_completion_date: string | null
   capture_lead: string | null
   data_room_template: string | null
   drive_folder_id: string | null
@@ -230,7 +229,14 @@ export async function readDealRegister(): Promise<DealRegister> {
         parentProjectId: row.parent_project_id,
         winProbability: row.win_probability,
         bidDueDate: row.bid_due_date,
-        targetDate: row.substantial_completion_date,
+        /*
+          ⚠ NULL ON A PROJECT SINCE 2026-10-31, when `substantial_completion_date`
+          was dropped. It is not a regression: the column was null on 24 of 24
+          projects, so this field was already empty in every report ever run.
+          A project aims at its `milestones`, which is a table; an opportunity
+          still has a real `target_close_date` below.
+        */
+        targetDate: null,
         captureLead: row.capture_lead,
         dataRoomTemplate: row.data_room_template,
         driveFolderId: row.drive_folder_id,

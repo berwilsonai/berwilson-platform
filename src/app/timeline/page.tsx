@@ -11,7 +11,7 @@ export default async function TimelinePage() {
   const [{ data: projects }, { data: milestones }] = await Promise.all([
     supabase
       .from('projects')
-      .select('id, name, stage, estimated_value, bid_due_date, award_date, ntp_date, substantial_completion_date')
+      .select('id, name, stage, estimated_value, bid_due_date, award_date')
       .in('status', ['active', 'on_hold'])
       .order('name'),
     supabase
@@ -44,9 +44,6 @@ export default async function TimelinePage() {
     const proj = p as typeof p & { bid_due_date?: string | null }
     if (proj.bid_due_date) markers.push({ date: proj.bid_due_date, type: 'bid_due', label: 'Proposal submission' })
     if (p.award_date) markers.push({ date: p.award_date, type: 'award', label: 'Contract award' })
-    if (p.ntp_date) markers.push({ date: p.ntp_date, type: 'ntp', label: 'Notice to proceed' })
-    if (p.substantial_completion_date)
-      markers.push({ date: p.substantial_completion_date, type: 'completion', label: 'Substantial completion' })
     for (const m of msByProject.get(p.id) ?? []) {
       markers.push({ date: m.target_date, type: 'milestone', label: m.label })
     }

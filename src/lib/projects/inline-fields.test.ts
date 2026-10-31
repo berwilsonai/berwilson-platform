@@ -10,7 +10,7 @@ import {
   type InlineFieldName,
 } from './inline-fields'
 import {
-  STAGES, STATUSES, SECTORS, BID_DECISIONS,
+  STAGES, STATUSES, SECTORS,
   WIN_BANDS, WIN_BAND_VALUE, WIN_BAND_LABELS,
 } from '@/lib/utils/constants'
 import type { TablesUpdate } from '@/lib/supabase/types'
@@ -85,7 +85,6 @@ test('the option lists come from the registry, not from this module', () => {
   assert.deepEqual(values('stage'), [...STAGES])
   assert.deepEqual(values('status'), [...STATUSES])
   assert.deepEqual(values('sector'), [...SECTORS])
-  assert.deepEqual(values('bid_decision'), [...BID_DECISIONS])
   assert.deepEqual(values('win_probability'), [...WIN_BANDS])
 })
 
@@ -98,7 +97,7 @@ test('the NOT NULL columns refuse to be emptied, by name', () => {
     is NOT NULL with a default, so it cannot be nulled either. The refusal has
     to be a sentence a reader can act on, not a 500.
   */
-  for (const name of ['sector', 'stage', 'bid_decision'] as const) {
+  for (const name of ['sector', 'stage'] as const) {
     const r = coerceInlineValue(name, '')
     assert.equal(r.ok, false, `${name} must refuse an empty value`)
     if (!r.ok) {

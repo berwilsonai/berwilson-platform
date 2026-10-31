@@ -194,8 +194,6 @@ export function toProposalExtraction(ex: EmailIntakeExtraction): ProposalExtract
         client_entity: ex.project.client_entity ?? ex.opportunity.counterparty,
         solicitation_number: null,
         award_date: null,
-        ntp_date: null,
-        substantial_completion_date: null,
         scope_of_work: ex.opportunity.thesis ?? ex.project.description,
         confidence: ex.confidence,
       },

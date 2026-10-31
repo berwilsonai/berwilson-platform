@@ -40,11 +40,6 @@ function parseFields(formData: FormData): ParseResult {
     win_probability = parsed
   }
 
-  // Bid decision: go/no-go gate
-  const rawDecision = str('bid_decision')
-  const bid_decision =
-    rawDecision === 'pursue' || rawDecision === 'no_bid' ? rawDecision : 'undecided'
-
   // Competitors: newline- or comma-separated list -> string[]
   const rawCompetitors = str('competitors')
   const competitors = rawCompetitors
@@ -105,11 +100,8 @@ function parseFields(formData: FormData): ParseResult {
       match_aliases,
       bid_due_date: str('bid_due_date'),
       award_date: str('award_date'),
-      ntp_date: str('ntp_date'),
-      substantial_completion_date: str('substantial_completion_date'),
       parent_project_id: str('parent_project_id'),
       win_probability,
-      bid_decision,
       capture_lead: str('capture_lead'),
       incumbent: str('incumbent'),
       competitors,

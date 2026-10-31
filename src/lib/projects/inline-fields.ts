@@ -35,7 +35,6 @@ import {
   STAGES, STAGE_LABELS,
   STATUSES, STATUS_LABELS,
   SECTORS, SECTOR_LABELS,
-  BID_DECISIONS, BID_DECISION_LABELS,
   WIN_BANDS, WIN_BAND_LABELS, WIN_BAND_VALUE,
   winBand,
 } from '@/lib/utils/constants'
@@ -104,12 +103,6 @@ export const PROJECT_INLINE_FIELDS = {
     clearable: true,
     hint: 'Your own read on whether we win it.',
   },
-  bid_decision: {
-    label: 'Decision',
-    kind: 'select',
-    options: asOptions(BID_DECISIONS, BID_DECISION_LABELS),
-    clearable: false,
-  },
 
   // ─── the money ───────────────────────────────────────────────────────────
   estimated_value: {
@@ -165,12 +158,6 @@ export const PROJECT_INLINE_FIELDS = {
   // ─── the dates ───────────────────────────────────────────────────────────
   bid_due_date: { label: 'Bid due', kind: 'date', clearable: true },
   award_date: { label: 'Award', kind: 'date', clearable: true },
-  ntp_date: { label: 'NTP', kind: 'date', clearable: true },
-  substantial_completion_date: {
-    label: 'Substantial completion',
-    kind: 'date',
-    clearable: true,
-  },
 } as const satisfies Record<string, InlineFieldSpec>
 
 export type InlineFieldName = keyof typeof PROJECT_INLINE_FIELDS

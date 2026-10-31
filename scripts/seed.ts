@@ -364,8 +364,6 @@ async function seedProjects() {
       client_entity: 'US Army Corps of Engineers, Wilmington District',
       solicitation_number: 'W912PM-23-R-0047',
       award_date: '2024-09-12',
-      ntp_date: '2024-11-04',
-      substantial_completion_date: '2026-05-04',
     },
     {
       name: 'Salt Lake Mixed-Use Development',
@@ -380,8 +378,6 @@ async function seedProjects() {
       client_entity: 'BW-SLC Mixed Use Partners LLC',
       solicitation_number: null,
       award_date: null,
-      ntp_date: null,
-      substantial_completion_date: '2028-06-01',
     },
     {
       name: 'Rocky Mountain Quantum Data Center',
@@ -396,8 +392,6 @@ async function seedProjects() {
       client_entity: 'RMI-BW Data Center JV LLC',
       solicitation_number: 'RMQE-2026-DC-001',
       award_date: null,
-      ntp_date: null,
-      substantial_completion_date: '2029-12-01',
     },
   ]
 

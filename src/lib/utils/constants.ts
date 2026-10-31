@@ -374,34 +374,23 @@ export const RELATIONSHIP_LABELS: Record<string, string> = {
   guarantor: 'Guarantor',
 }
 
-// ─── Capture / Bid management ────────────────────────────────────────────────
+/*
+  ─── Capture / Bid management ──────────────────────────────────────────────
 
-export type BidDecision = 'undecided' | 'pursue' | 'no_bid'
+  ⚠ THE BID DECISION VOCABULARY WAS REMOVED 2026-10-31 (Richard: *"On the
+  project level get rid of decision, ntp and substantial completion"*), along
+  with the `projects.bid_decision` column itself.
 
-export const BID_DECISIONS: BidDecision[] = ['undecided', 'pursue', 'no_bid']
+  It was a second answer to a question `deal_stage` already owns. §4 states the
+  rule for the pair it replaced — STAGE OWNS THE OUTCOME, and two fields
+  answering "are we going after this?" is one-quantity-two-definitions. A deal
+  sitting in `in_discussions` with a Decision of "Go / No-Go Pending" is the
+  contradiction that rule exists to prevent, and 22 of 24 projects read exactly
+  that way.
 
-export const BID_DECISION_LABELS: Record<BidDecision, string> = {
-  undecided: 'Go / No-Go Pending',
-  pursue: 'Bid',
-  no_bid: 'No-Bid',
-}
-
-export const BID_DECISION_SHORT: Record<BidDecision, string> = {
-  undecided: 'Pending',
-  pursue: 'Bid',
-  no_bid: 'No-Bid',
-}
-
-export const BID_DECISION_BADGE: Record<BidDecision, string> = {
-  undecided: chipTone('neutral'),
-  pursue: chipTone('positive'),
-  no_bid: chipTone('critical'),
-}
-
-/** Normalize a possibly-null/legacy bid_decision value to a known key. */
-export function bidDecision(value: string | null | undefined): BidDecision {
-  return value === 'pursue' || value === 'no_bid' ? value : 'undecided'
-}
+  Measured before removing: 22 `undecided`, 2 `pursue`, 0 `no_bid` — so the
+  only thing it ever said was already legible from the stage.
+*/
 
 /** Expected (probability-weighted) value of a pursuit. */
 export function weightedValue(estimatedValue: number | null, winProbability: number | null): number {

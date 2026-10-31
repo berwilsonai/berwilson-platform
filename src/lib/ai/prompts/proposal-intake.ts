@@ -69,8 +69,6 @@ Return ONLY valid JSON matching this exact schema:
       "client_entity": "owner or client name, or null",
       "solicitation_number": "string or null",
       "award_date": "YYYY-MM-DD or null",
-      "ntp_date": "YYYY-MM-DD or null",
-      "substantial_completion_date": "YYYY-MM-DD or null",
       "scope_of_work": "detailed scope description — include unit counts, square footage, key specs",
       "key_facts": ["notable fact 1", "notable fact 2"],
       "total_units": null or number,

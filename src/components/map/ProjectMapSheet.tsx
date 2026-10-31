@@ -119,8 +119,6 @@ export default function ProjectMapSheet({
     ? [
         ['Bid due', p.bid_due_date],
         ['Award', p.award_date],
-        ['NTP', p.ntp_date],
-        ['Completion', p.substantial_completion_date],
       ]
     : []
   const shownDates = dates.filter(([, v]) => v)

@@ -54,8 +54,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     ⚠ THE WHITELIST IS THE SPEC, NOT A LIST WRITTEN HERE.
 
     This route hand-rolled three fields — bid_due_date, win_probability and
-    bid_decision — each with its own `if ('x' in body)` block and its own
-    validation. Inline editing on the record page needs twenty-one, and
+    the since-removed bid_decision — each with its own `if ('x' in body)` block
+    and its own validation. Inline editing on the record page needs twenty-one, and
     twenty-one hand-rolled blocks is where the §12 finding lands: of 61
     one-table route handlers with one write verb, 22 had no record check at
     all, six of them siblings of a seventh that did. The spec in

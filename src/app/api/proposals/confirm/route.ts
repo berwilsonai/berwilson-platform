@@ -22,8 +22,6 @@ interface ProjectToCreate {
   client_entity?: string | null
   solicitation_number?: string | null
   award_date?: string | null
-  ntp_date?: string | null
-  substantial_completion_date?: string | null
   parent_project_id?: string | null
   attach_to_existing_id?: string | null
 }
@@ -176,8 +174,6 @@ export async function POST(request: NextRequest) {
         client_entity: projectFields.client_entity || null,
         solicitation_number: projectFields.solicitation_number || null,
         award_date: projectFields.award_date || null,
-        ntp_date: projectFields.ntp_date || null,
-        substantial_completion_date: projectFields.substantial_completion_date || null,
         parent_project_id: parentId,
       })
       .select()

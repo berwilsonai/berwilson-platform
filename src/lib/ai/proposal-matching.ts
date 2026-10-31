@@ -13,8 +13,6 @@ export interface ExtractedProject {
   client_entity: string | null
   solicitation_number: string | null
   award_date: string | null
-  ntp_date: string | null
-  substantial_completion_date: string | null
   scope_of_work: string | null
   key_facts?: string[]
   confidence: number

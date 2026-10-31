@@ -183,8 +183,6 @@ export function toProposalExtraction(lead: LeadRow, attachmentText: string): Pro
         client_entity: lead.sender_company,
         solicitation_number: lead.solicitation_number,
         award_date: null,
-        ntp_date: null,
-        substantial_completion_date: null,
         scope_of_work: scope || null,
         key_facts: lead.key_facts,
         confidence: lead.triage_confidence ?? 0.5,

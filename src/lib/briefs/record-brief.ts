@@ -501,8 +501,6 @@ export async function assembleProjectBrief(
   // hand-picked bands. See the win-band block in constants.ts.
   fact('Win probability', winBandLabel(project.win_probability))
   fact('Award date', project.award_date)
-  fact('NTP date', project.ntp_date)
-  fact('Substantial completion', project.substantial_completion_date)
   fact('Description', project.description)
   push('RECORD FIELDS', facts)
 

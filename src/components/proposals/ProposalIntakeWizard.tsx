@@ -20,8 +20,6 @@ interface ExtractedProject {
   client_entity: string | null
   solicitation_number: string | null
   award_date: string | null
-  ntp_date: string | null
-  substantial_completion_date: string | null
   scope_of_work: string | null
   key_facts?: string[]
   confidence: number
@@ -374,8 +372,6 @@ export default function ProposalIntakeWizard({ availableParents: initialParents 
         client_entity: p.client_entity || null,
         solicitation_number: p.solicitation_number || null,
         award_date: p.award_date || null,
-        ntp_date: p.ntp_date || null,
-        substantial_completion_date: p.substantial_completion_date || null,
         parent_project_id: parentProjectId || null,
         attach_to_existing_id: attachId,
       }
