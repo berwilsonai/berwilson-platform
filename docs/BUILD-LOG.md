@@ -514,24 +514,56 @@ skipping the shot. It is what caught the em dash above.
 - Lint unchanged by this work (my files produce zero findings).
 - `BW_DIST_DIR=.next-verify npm run build` exit **0**, `.next` untouched.
 
-### ⚠ NOT DEPLOYED BY THIS SESSION — THE WORKING TREE IS NOT MINE ALONE
+### ⚠ THE DEPLOY WAS BLOCKED BY A SECOND SESSION, AND THAT IS A DEPLOY-SHAPED PROBLEM, NOT A COMMIT-SHAPED ONE
 
-A second Claude session is mid-workstream in this same repo on a
+A second Claude session was mid-workstream in this same repo on a
 `project_stage` → `deal_stage` rename, ~58 files, uncommitted and being edited
-during this session (files touched five minutes before it started). The deploy
-runbook **builds the working tree**, and `KeepAlive: true` means the build IS the
-deploy — so shipping this feature would ship their in-progress rename with it,
-which is precisely what CLAUDE.md's *"never run `npm run build` against a working
-tree you are not willing to ship"* exists to prevent. Fourteen of the files this
-feature touches are files they are also editing, so a filtered-patch split would
-produce a commit that does not compile on its own.
+*during* this session. The runbook **builds the working tree** and
+`KeepAlive: true` makes the build the deploy — so shipping this feature meant
+shipping their rename with it, which is exactly what CLAUDE.md's *"never run
+`npm run build` against a working tree you are not willing to ship"* exists to
+prevent. Fourteen of the files this feature touches are files they were also
+editing, so a filtered-patch split would not have compiled on its own.
+
+⚠ **AND COORDINATION WAS NOT AVAILABLE: both `SendMessage` attempts to that
+session were held for its user's approval and then expired undelivered.** Silence
+across sessions is neither agreement nor refusal — there is simply no channel, so
+the call goes to Richard rather than to an inference about somebody else's
+unfinished work.
+
+Checked rather than assumed, because it would have changed the answer: their
+migration was already applied to the live database, so production was running an
+old build against a renamed enum. It was **not** broken — `HEAD`'s `STAGES`
+already held the same six members (`prospecting … lost`), so the rename was
+value-compatible and the error log was clean. That removed the one argument for
+shipping their work unilaterally.
+
+Richard then told the other session to deploy and push residuals. It committed
+this feature under its own message (`1dfa5fb`), and both landed in one build.
+**Verified after the fact rather than trusted:** working tree clean, build (08:36:26)
+newer than the commit (08:35:53) so the build *is* `HEAD`, `next-server` restarted
+onto it, `main` level with `origin/main`, `tailnet-setup.sh` and
+`lmstudio-check.sh` both green, and — the check that actually mattered for a
+brand-new table — **PostgREST answers `200 []` on `/rest/v1/power_phases`**, so
+its schema cache has the table and the grants hold. A fresh table that
+PostgREST has not reloaded answers `PGRST205`, and every reader would have
+reported it as "this deal has no schedule".
 
 `src/types/database.ts` was regenerated with `-- --force` (it refuses while
-dirty); their 8 `deal_stage` lines all survive — **0 removed**, verified — and
+dirty); their 8 `deal_stage` lines all survived — **0 removed**, verified — and
 only the `power_phases` types were added.
 
-Handed the deploy decision to Richard with the peer session asked directly
-whether its tree is shippable.
+### ⚠ CLAUDE.md SPENT AN HOUR OVER ITS TRUNCATION CEILING, AND NEITHER SESSION CAUSED IT ALONE
+
+It started the session 25 characters under 150,000. Measured five times in ten
+minutes: 149,975 → 148,970 → 150,027 → 151,135 → 151,800 — both sessions were
+freeing room and spending it between each other's reads, so every trim was
+immediately absorbed and the file sat **silently truncated**, which is the one
+failure the limit exists to prevent. Resolved by attributing the overage with
+`git diff` before trying to fix it (this session's net contribution was ~+32
+characters, i.e. it paid for its own entry) and then cutting this session's own
+lines further rather than someone else's. Recorded in the
+`concurrent-claude-sessions-share-this-repo` memory.
 
 **Done 2026-10-30 (the checklist first — and the screenshot harness that had not parsed since yesterday):**
 
