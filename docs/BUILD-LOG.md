@@ -6,6 +6,533 @@ This file is **not** auto-loaded into a Claude Code session. It is the archive: 
 
 Split out of `CLAUDE.md` on 2026-09-23, when that file reached 606k characters against a 150k limit above which it is silently truncated — meaning the project's own operating instructions had begun to risk not reaching the sessions that need them. The entries below are **verbatim and unedited**.
 
+**Done 2026-10-30 (one stage vocabulary, win bands, inline editing, a shorter brief, and the attachment door):**
+
+Five asks in one message from Richard. Each was measured before it was built,
+and three of the five turned out to be a different job than the words implied.
+
+### ⚠ THE STAGE RENAME WAS A RENAME FOR ABOUT TEN MINUTES
+
+Richard: *"For stages lets put Prospecting, In Discussions, Due Diligence,
+Contracting, Won, Lost"*.
+
+Measured first. `projects.stage` held a seven-member defence-contracting
+lifecycle — pursuit, capture, bid, award, mobilization, execution, closeout —
+and **four of those seven had never been used by a single row**: 14 pursuit, 7
+capture, 1 bid, 1 null. The back half described DELIVERY, which is what
+milestones are for, not a position in a pipeline. Meanwhile `opportunities`
+carried a NINTH, SEPARATE vocabulary on a plain-text `status` column
+(identified / evaluating / in_discussion / due_diligence / negotiating /
+agreement / on_hold / closed_won / closed_passed). Two boards, two languages,
+and a promotion between them had to translate.
+
+Asked, and Richard took the recommendation: one vocabulary for both, and
+**stage owns the outcome**. `project_status` had won/lost/closed sitting right
+beside the new stages, which is two fields answering "did we win it?" with
+nothing stopping them disagreeing — §12's one-quantity-one-definition. It is
+narrowed to a parking flag, Active | On Hold. Measured before narrowing: 20
+active, 3 on_hold, **zero** in won, lost or closed, so the three members were
+never the answer to anything. `opportunities` gained a `stage` column on the
+same enum and its `status` became the same parking flag behind a CHECK.
+
+### ⚠ SEVEN LIVE BUGS, NONE OF WHICH `tsc` COULD SEE
+
+The type did its job on the 50-odd files that referenced `ProjectStage`. What
+it could not see was every place the vocabulary had been retyped as `string[]`
+— and that is where the damage was:
+
+- **`status: 'identified'` in ALL THREE opportunity producers** — lead
+  promotion, record-from-recording, and the email-intake confirm step. After
+  the CHECK landed, every automatic opportunity creation would have failed with
+  `23514`, which fails the whole insert rather than the field.
+- **`stage: 'pursuit'` in four more writers**, same shape, `22P02`.
+- **`projectPhase()` in `map/constants.ts`** compared against the four retired
+  post-award members. Every project would have answered `pipeline`, the map's
+  Awarded filter would have returned nothing and every marker would have drawn
+  outlined. It takes `string`, so nothing could see it.
+- **`darkRecords()` in `system-health.ts`** excluded `closed_won` and
+  `closed_lost` — and ⚠ `closed_lost` was never a member of anything; the old
+  terminal pair was `closed_won`/`closed_passed`. §12: a `not in` against a
+  value the column never holds is true for every row and looks exactly like a
+  result. Every passed opportunity has been counting as a "dark record" since
+  that line was written. Pre-existing, found by the rename.
+- **Two agent TOOL DECLARATIONS enumerated the retired vocabularies for the
+  model** — §12 says keep a taxonomy out of tool declarations especially,
+  because the model is told the old words and dutifully sends them. And
+  `list_projects` CAST the model's `stage` rather than narrowing it, so one
+  plausible-but-wrong value would have returned a null row set the agent
+  reports as "no projects" — the one answer indistinguishable from a correct
+  empty result.
+- **Six prompts hardcoded the old seven**, one of them with a worked example
+  mapping phrases to each member (§12: a prompt example is training data, and a
+  stale one is a lie the model repeats with confidence).
+- **A hand-written `STAGES` array in `ProposalIntakeWizard`**, `string[]`, which
+  would have offered seven stages that no longer exist.
+
+Every enumeration now derives from the registry. `STAGE_ENUM_FOR_PROMPT` is
+generated and interpolated into the prompts; the tool declarations spread
+`STAGES`. `deal-stages.test.ts` scans the source tree for a second copy of the
+vocabulary and names `src/types/database.ts` as the one exemption **with an
+assertion that the exemption is real** — if the generated types ever stop
+carrying these tokens, the exclusion is hiding a failed regeneration.
+
+⚠ **AND THE SCAN HAD TO BE NARROWED TWICE BEFORE IT WAS WORTH KEEPING.** The
+first version hunted all seven retired tokens and flagged sixteen files, of
+which two were real: `bid` is a calendar event type AND a document-classifier
+token, `award` is a timeline marker, `execution` and `mobilization` are
+construction trade terms in the iMessage deal-term list, `capture` is inside
+`capture_lead`. Same again on the opportunity side — `identified`,
+`evaluating`, `negotiating` and `agreement` are all live values in the investor
+stages, the document classifier and the personnel agreement kinds; twelve files
+flagged, three real. §12 says it outright: where the values are ordinary
+English words, no word search can tell a taxonomy from a sentence. The shipped
+scan hunts `pursuit` and `closeout` on one side and `in_discussion`,
+`closed_won`, `closed_passed` on the other — and **the narrowing lost nothing**,
+because those five still catch both genuine finds. A check with false positives
+is a check somebody turns off.
+
+⚠ **AND THE OLD ENUM TYPE SURVIVED THE MIGRATION.** `alter column ... type` does
+not remove the old type: `project_stage` sat there with all seven retired
+members, and `gen-types` dutifully emitted it into `database.ts` as a live
+vocabulary. Anything casting to it would have compiled. Dropped.
+
+### WIN PROBABILITY IS THREE WORDS, STORED AS A NUMBER
+
+Richard: *"Make it so we can manually select win probability. Low, Medium and
+High."*
+
+Measured: 21 of 23 projects held NULL and the two that were set held 80 and 99.
+The column stays `int4` and that is deliberate — `weightedValue()` multiplies by
+it, and the weighted pipeline figure on the board, the dashboard and
+`snapshot.ts` all read that product. Storing the band as text would have meant
+either losing the weighted figure or re-deriving a percentage at four call
+sites, which is the same mapping written four times. So **the band IS a
+percentage**, with one place saying which, and the round trip
+(`WIN_BAND_VALUE` → `winBand`) is asserted by test because if those two ever
+disagree a human picks "High", the chip comes back "Medium", and nothing errors.
+
+⚠ **THE READER IS SHOWN THE BAND, NEVER THE NUMBER.** Printing "20%" at
+somebody who chose "Low" is §12's never-print-a-stored-enum with more digits.
+A test matches the two shapes that put it back on screen — a `${…}%` template
+and a percentage width — and both sites were real at the time it was written.
+
+### INLINE EDITING: ONE SPEC, TWO READERS
+
+Richard: *"Make all those fields editable on a project by double clicking
+rather than going to the 'edit' button."*
+
+Twenty-one fields. The spec in `src/lib/projects/inline-fields.ts` drives the
+renderer AND is the PATCH whitelist, so a field the UI can offer is exactly a
+field the route accepts — §12's rule that when several routes answer the same
+shape the check belongs in the one spec they share. Its option lists come from
+the registry rather than being typed there, which is what stopped it becoming a
+seventh copy of the stage vocabulary on the day the other six were being
+removed.
+
+⚠ **`isInlineField` USED `in`, WHICH WALKS THE PROTOTYPE CHAIN.** `'toString'`,
+`'constructor'` and `'__proto__'` all answered true, so a body of
+`{"toString": "x"}` passed the whole whitelist for `PATCH /api/projects/[id]`
+and at best sent Postgres a column named `toString` — `42703`, discarding every
+legitimate field sent alongside it. Caught because the test walked the junk
+values rather than only the good ones. `hasOwnProperty`.
+
+Three smaller things the work turned up:
+- The route wrote through the request's RLS client, so **every inline edit
+  would have been logged as "system"** — §12: a user-initiated mutation on a
+  tracked table goes through `actorAdminClient()` or the trail answers nothing.
+  It mattered less when the route wrote three capture fields from a board
+  overlay; twenty-one fields a double-click away is exactly when "who changed
+  it, and from what" becomes the question.
+- The `returning` list was a literal three columns. An inline edit of `location`
+  would have written correctly and come back WITHOUT location, and the client
+  reconciles against what comes back — so the field would have snapped to
+  undefined over a database holding the new value.
+- Several surfaces were **gated on having a value** — the Description section,
+  the Key Dates rows, the Competitive Landscape block, and the Status chip,
+  which rendered only when status was NOT active. Right for reading; §12 says a
+  surface hidden because it is empty is hidden exactly when somebody needs to
+  fill it, and under a double-click editor an absent row is an absent door. The
+  only way to set an NTP date was the Edit form, which is the trip being
+  removed. They all render now and name the absence in words.
+
+### THE BRIEF WAS 5,220 CHARACTERS
+
+Richard: *"The executive summary is way too wordy. Be as concise as possible."*
+
+Measured: 34 stored project briefs averaged **5,220 characters**, longest 6,460
+— roughly 850 words over eight headed sections. The old prompt already said
+"aim for something a busy executive reads in two minutes", which is why the fix
+is **a budget per section rather than an instruction to be brief**. "Be
+concise" is advice; "at most four bullets, one line each" is a constraint the
+model can satisfy and a reader can verify.
+
+Measured after: Steelton came back at **2,264 characters / 346 words**, inside
+the 400-word ceiling, with the structure intact and the overflow line
+("+1 more on the record") working. Every honesty rule was kept and
+`brief-length.test.ts` asserts each one by name — each is a wrong answer that
+actually shipped once, and a rule deleted while tidying a prompt leaves no
+trace at all.
+
+⚠ **AND THE FIRST BRIEF UNDER THE NEW PROMPT OPENED
+`infrastructure · in_discussions · $12B`.** The evidence pack was handing the
+model the raw enum and the model repeated it verbatim — the same shape as
+§12's `GridEdge (opportunity)` note, where display formatting handed to a model
+comes back in the answer. The pack now hands it labels. The 9 briefs already
+dated today were deleted so the date-based staleness check could not keep
+serving the long version.
+
+### THE ATTACHMENT DOOR — AND THE RULE THAT HAD TO BE THROWN AWAY
+
+Richard: *"I'm also getting way too many junk attachments in my decide folder.
+I don't want individual pictures unless it is very clear what project they
+belong to."*
+
+Measured: 465 unparented `documents` rows, 68 of them images. ⚠ **ALL 68
+CARRIED `filing_confirmed_at` FROM THAT MORNING** — he had just clicked through
+every one by hand, which is the complaint exactly and the reason the fix
+belongs at the door rather than in the queue. What they were: `icon.png` ×5,
+`image.png` ×6, an apple-touch-icon, `mime-attachment.png`, two logos,
+`smime.p7s`, a `.pkpass` event ticket, two `.webloc` bookmarks, four flyers,
+three screenshots, and camera-roll names carrying no words at all.
+
+⚠ **THE FIRST GATE WAS MEASURED AND THROWN AWAY.** It refused any orphan
+picture whose name did not NAME a record — `identifiesRecord` against the
+portfolio, the §11 bar for creating a record off a recording, chosen precisely
+because it is strict. Replayed over the 419 unparented rows it refused all 68
+images and **kept ZERO**, and reading the list is what settled it:
+`AVIDIAN MAP.jpeg`, `freegoldmap.jpg` and three `SPV_*.png` diagrams were
+among the casualties, real material refused because the portfolio holds no
+record called Avidian or SPV. A 22% loss rate on that class. §12: replay every
+candidate rule over the decided corpus and take the LOOSEST that loses nothing.
+
+What shipped refuses four classes with a measured **zero** false positives
+across all 419 rows — a device-written name (35), mail chrome (12), marketing
+collateral by whole word (7), and a non-document extension (4). **58 of 419,
+54 of them images, 79% of the picture junk.** The 14 pictures still admitted
+all carry real words, which is the only thing a human has to go on, so they
+reach /decide — where a disposition is now one click. ⚠ The gate is narrow for
+a reason already written down in this repo: `exclude-mail-chrome.mts` records a
+previous session planning to exclude the images and abandoning it on reading
+them, because the project-FILED ones are real diligence — 15 scanned bridge
+inspection sheets, 20 survey plats, a zoning exhibit, two claim maps.
+
+⚠ **AND THE LAST TWO JUNK FILES WERE FOUND BY READING THE KEPT COLUMN.** Two
+`1000033270-id-<uuid>.png` rows sat in the 16 the gate let through. §12 — a big
+number from a new extractor is not a result until somebody reads the text, and
+here the number worth reading was the one that said "kept".
+
+### ⚠ NO UNPARENTED DOCUMENT COULD EVER BE SET ASIDE
+
+The backfill retiring those 58 rows failed on all 58 with `23514`, 0 chunks
+removed, no partial write. `excludeDocument()` sets `excluded_at` and clears
+`awaiting_filing` — correct, because a tombstone that still claims to be
+awaiting a filing decision is a lie. But for those 419 rows `awaiting_filing`
+was the **only** member of `documents_scope_check` they satisfied: project_id,
+entity_id, meeting_id and steel_deal_id all NULL, both booleans false. So the
+exclusion removed the row's last scope and the UPDATE was refused outright.
+
+Measured before changing anything: 22 rows carry `excluded_at` today and **all
+22 are scoped some other way**, which is exactly why this was never hit — the
+only population that can reach it is the unparented queue, and nobody had ever
+successfully set one of those aside.
+
+⚠ **THE FIX IS A NEW MEMBER, NOT A FLAG THAT MERELY SATISFIES THE CHECK.** §12
+is explicit about this and both shortcuts were available: `is_reference = true`
+would have passed the constraint and lied to every reader of the reference
+library, and `awaiting_filing = true` would have kept the row in the queue it
+was being removed from. "This row has been set aside" is a legitimate terminal
+scope and now says so.
+
+### ONE CLICK, AND WHERE THE LINE IS
+
+Richard: *"When I do, I want it to be a click (no confirmation) so I can get
+through them quickly."*
+
+Asked where the line should be, because it is not obvious: he took the
+recommendation. **The line is reversibility, not importance.** Filing a
+conversation onto a deal, making a task, approving a match, setting a document
+aside and confirming a field are each one write a later press undoes — on a
+queue worked in batches of seventy, a dialog on each is a second click that
+teaches people to stop reading the first one. Creating a project or an
+opportunity writes the record, its contacts, its tasks, its attachments and a
+Drive room; there is no single press that takes that back, so those two keep
+one confirmation.
+
+`CONFIRM_BEFORE` is typed `Record<AcceptAction, boolean>` rather than a Set, so
+the build names a new action nobody classified — the honest default for an
+unclassified action is not "fire silently". All four call sites (the primary
+button, the alternate, the record picker and the `a` shortcut) go through one
+`requestAccept`, because four places is exactly where a policy written as an
+`if` at each one drifts.
+
+### Verification
+
+tsc clean · **999 tests** (917 → 999) · lint at the frozen 23 · build exit 0 ·
+both themes screenshotted. The backfill was run twice and the second run
+reported 0, which is the §12 pairing for any fill-not-overwrite pass.
+
+⚠ **COMMITTED AS ONE HALF OF AN INTERLEAVED PAIR.** A second Claude session was
+building a power-ramp feature in this repo throughout, and its files are woven
+through 13 of the files here — a file vanished from `git status` between two
+commands while this was being staged. Its files were deliberately left
+unstaged rather than committed on its behalf, so **this commit does not compile
+on its own; the working tree is what is green.** Not deployed for the same
+reason: the runbook builds the working tree, and shipping another session's
+in-flight feature is not this session's call.
+
+---
+
+**Done 2026-10-30 (the ramp-up schedule — the key metric the platform had no column for):**
+
+Richard: *"On the project level, put a 'ramp up schedule' that is where you allow
+it to add up to 6 phases of Megawatt power with a date. For example, 100 MW by
+June 1 2027, 300 MW by August 2029. Total 400 MW. I want that total of MW
+displayed on every project in a prominent place. It is the key metric. Make sure
+that on the projects page, and other views it is shown by the project name."*
+
+### ⚠ THE PLATFORM HAD NO MEGAWATT FIELD AT ALL, AND ITS OWN ASK BAR ADVERTISED ONE
+
+Measured before building anything. A grep for `megawatt|capacity_mw` over `src/`
+returns **five** hits and not one of them is a column: a stopword in the iMessage
+classifier, a line in `figures.ts` about what NOT to gate, two comments in the
+deleted economics migration — and `src/components/dashboard/AskBar.tsx:16`, which
+offers the reader the example question ***"How many megawatts are in our
+pipeline"***. The platform has been inviting a question it could not answer.
+
+The figures exist, in prose. Box Elder Quantum Campus's own executive brief, on
+screen today, reads *"1,104 megawatts of net power in Phase 1"* and *"a phased
+1.1-gigawatt power architecture"*. So the number is in the corpus, written by the
+model, retrievable only as a sentence — and unsummable, unsortable, and absent
+from every total.
+
+### ⚠ THE EXAMPLE IS THE SPECIFICATION, AND IT IS THE RARE ONE THAT DISAMBIGUATES
+
+A phase figure can be read two ways and the two are indistinguishable once typed:
+an **increment** (this tranche adds 300) or a **running total** (we reach 300).
+Richard's own worked example settles it — 100 + 300 = **400** — because under the
+cumulative reading that total would be 300.
+
+§12 warns that *a worked example whose figures coincide cannot distinguish two
+readings of the rule it illustrates*. This one does not coincide, which is the
+only reason the rule could be asserted at all. Had he written *"100 then 400,
+total 400"* both readings would satisfy it and the test would prove nothing. So
+the increment reading is asserted directly (`assert.notEqual(total, 300)`), and
+the test says why it is able to be.
+
+That decision is then defended in three places rather than one, because it is the
+kind of thing a future session silently re-decides: the column comment on
+`megawatts`, the module header, and — the one that actually works — **the
+editor's own running-total column**. Type 300 into phase 2 and the row says
+`+300 MW` while the column beside it says `400 MW` cumulative. Nobody can enter
+the wrong reading without seeing it.
+
+### WHAT WAS BUILT
+
+**`power_phases`** — a shared child (§4): nullable `project_id` + nullable
+`opportunity_id`, exactly-one CHECK. A phase carries facts of its own — a
+quantity, a date, later a note about why the date moved — so it is a record, not
+a jsonb attribute, and only as a row can the audit log answer *"phase 2 slipped
+from Aug 2029 to Dec 2029"*, which is the question the schedule exists to raise.
+
+- **Six is in the schema**, `check (phase_no between 1 and 6)`, not left to the
+  form. Richard said six; a schema that did not say so would let an import or an
+  agent write a seventh that no UI can show or remove. It is a CHECK and not a
+  registry table because the value set does not grow with the business — it is
+  the width of a form (§12: a CHECK is a list baked into the schema; an FK points
+  at rows).
+- **`unique nulls not distinct (project_id, opportunity_id, phase_no)`.** The
+  shared-children convention manufactures a row where one parent column is always
+  NULL, and §12 names the trap exactly: under Postgres's default rule two NULLs
+  never equal each other, so a plain unique key here would look present and
+  enforce nothing — six duplicate "phase 1" rows on one deal. **Proven live**: the
+  duplicate insert was refused with `Key (project_id, opportunity_id, phase_no)=
+  (…, null, 1) already exists`, i.e. it fired *through* a NULL.
+- **`target_date` is nullable on purpose.** Capacity is routinely known before the
+  date, and a NOT NULL here would make the honest answer unenterable — which is
+  how a form starts collecting invented dates (§12). The total sums the
+  megawatts and does not depend on it; the UI names the absence in words.
+- **`megawatts > 0`, not `>= 0`.** A phase that brings nothing online is not a
+  phase, it is a milestone, and `milestones` already exists.
+
+All four constraints were **exercised against the live database** rather than
+assumed: phase 7 → `power_phases_phase_no_check`; a duplicate → the unique key
+above; neither parent → `power_phases_scope_check`; 0 MW →
+`power_phases_megawatts_check`. API grants checked in `role_table_grants` before
+writing any code that would have answered `42501` (§12).
+
+**The audit trigger, and `_audited_in_full`.** §12 records two tables in two days
+that silently went without `log_activity()` because the trigger is a hand-written
+enumeration with no registry behind it. This table holds the platform's stated key
+metric, so a hard delete leaving nothing in the append-only log would lose the
+only record the figure ever had another value. The `_audited_in_full` patch was
+**derived from `pg_get_functiondef` and edited programmatically**, never retyped
+(§12 — the function is 228 lines of per-table branches): one insertion, asserted
+to add 9 lines and remove 0, diffed before against after, with exactly one
+`log_activity` in `pg_proc` before and after. Verified live — an UPDATE produced
+`{"megawatts": {"old": 100.00, "new": 300.00}, "target_date": {"old":
+"2027-06-01", "new": "2029-08-01"}}`, and a DELETE left the row recoverable from
+`metadata`.
+
+**`src/lib/records/power.ts`** — the choke point, shaped deliberately like
+`pipeline-value.ts`, which exists because `estimated_value` was one unlabelled
+column holding $57.5B of plainly different quantities. Every figure comes back
+with a `definition` and a `hint`; nothing else reads `power_phases` and adds it
+up; the hierarchy arithmetic lives here once. **`leafRecords`/`descendantsOf` are
+IMPORTED from `pipeline-value.ts`, not copied** (§12: never fork a shared pass) —
+a program double-counting megawatts is the same bug as a program double-counting
+money and it must not be possible to fix one and not the other.
+
+**⚠ ALWAYS MW, NEVER GW.** 1,200 MW renders `1,200 MW`. Two adjacent rows reading
+`900 MW` and `1.2 GW` make the reader do unit arithmetic to answer "which is
+bigger", which is the whole job of a column read down a page (§12: one quantity,
+one definition).
+
+**⚠ ONE DELIBERATE DIVERGENCE FROM THE MONEY RULE, AND IT IS NOT A DOUBLE
+COUNT.** A deal's capacity lives on leaves, as its value does. But where the
+leaves carry *no* schedule at all, the parent's own is used — for money
+`rolledPipelineValue` returns null there and calls the program unpriced, which is
+right for a figure somebody is about to type and would here hide a real, entered
+400 MW behind three empty sub-projects. The leaves contribute zero, so nothing is
+counted twice. **`portfolioPower` applies the identical fallback**, walking
+subtrees from the roots rather than filtering to leaves, so the two agree *by
+construction* — a program page reading 400 MW above a portfolio tile reading 0 is
+worse than either number alone. There is a test for exactly that pair.
+
+### ⚠ ONE DOOR, AND IT IS THE REGISTRY THAT ALREADY HAS THE ACCESS CHECK
+
+Writes go through `/api/records/power-phases` — the spec-driven pair in
+`src/lib/records/children.ts`, which §12 records replacing six hand-written child
+routes, **of which six of seven had missed the record-level access check**. So a
+confidential project refuses, the acting user reaches the audit log instead of
+"system", the field whitelist holds, and none of it had to be remembered here.
+
+One general addition the registry needed: **`checks`**, a map from a constraint
+name to what it means in words. `normalizePayload` knows a column's type and its
+enum membership; it cannot know that megawatts must be positive, because that
+lives in the schema where it belongs — the only place a direct SQL write, an
+import or an agent also has to get past. Without the map, Postgres's raw
+`violates check constraint "power_phases_megawatts_check"` reaches the reader as
+a 500, which is the same mistake §12 records against `dd_items.severity`
+surfacing a `22P02` as a server error.
+
+⚠ **And a constraint name in a TypeScript map is a string match against
+Postgres's own text that nothing else checks** — misspell it, or rename the
+constraint later, and the friendly 400 silently reverts to the raw 500, green
+through typecheck, build and every other test, because a lookup that misses is
+not an error. So `children.test.ts` now reads the real artifact: every `checks`
+key must appear in a migration file. **Planted a violation to prove it bites** —
+`power_phases_megawatt_check` failed with *"no migration declares a constraint
+named…"* — then restored it.
+
+### WHERE THE NUMBER SHOWS, AND WHY IT IS ONE RENDERER
+
+§12: *a shared renderer wired to one surface is worse than no shared renderer*,
+because the second surface hand-rolls a copy that drifts. So there is exactly one
+`PowerFigure`, in three variants, and **every** surface was wired to it in the
+same change: beside the name in both detail headers; a sortable **Capacity**
+column on the projects table placed immediately after Project and never hidden at
+a breakpoint (every other column there drops on a narrow viewport; the key metric
+is the one that must survive); the project cards; the program banner; both
+opportunity views including the per-stage column totals; the dashboard; and the
+masthead metric on `/projects`, carrying its coverage note.
+
+**Absence is handled differently in a card and in a column, and both are right.**
+In a card the figure is simply absent — an `inline` PowerFigure over a null total
+renders nothing. In an aligned column it is a muted dash with an `aria-label`,
+because the header names the quantity and the words would repeat down every
+unscheduled row. That is the same split `ProjectsTable` already made for money
+three columns along, and two adjacent columns answering absence differently is
+the worse failure.
+
+**The agent got the figure too**, on the existing tools rather than a new one
+(§12: where the capability is real but the tool exists, add a parameter — and a
+duplicate tool name shadows silently). `get_portfolio_summary` and `list_projects`
+now return `total_capacity_mw` with its coverage and a `capacity_note`, **already
+summed**, because §12 records the model answering 62 over a 69-row schedule. The
+capacity total goes through `portfolioPower`; ⚠ the money total beside it is still
+a flat `reduce` and is double-counting programs today — left alone rather than
+changed in passing, and recorded here.
+
+### ⚠ THE SCREENSHOT FOUND A BUG THE 85 RENDER ASSERTIONS DID NOT
+
+The editor's empty state printed an em dash at `text-metric` weight for the
+not-yet-entered total. On screen it reads as a strikethrough or a failed render —
+which is §12's rule *a bare em dash at a value's own weight reads as a failed
+render*, quoted in that very file's docblock two screens above the code that
+broke it. Fixed: no figure at all until there is one, since the empty state
+already says what to do in words.
+
+Seeding the production database to photograph the populated case was **declined
+by the permission layer**, correctly — it is a shared resource and the numbers
+would have been invented deal facts. So the populated states were rendered
+directly instead, which is the stronger check anyway (§12: behind auth a curl
+cannot tell an answer from a throw). `scripts/verify-power-render.tsx` —
+**108 assertions**: every variant × absent/example/undated/four-figure, no `NaN`,
+`undefined`, `Infinity` or `[object Object]` on any surface, the table and the
+card printing the *same* 650.5 MW for one program, and 400 MW present with
+300 MW absent.
+
+⚠ **`megawatts` is a string in every fixture**, because PostgREST hands a
+`numeric` column back as one and a fixture that builds the field the way the
+producer never does cannot catch a producer that never fills it (§12). The
+version of the arithmetic that assumed `number` would concatenate `"100"` and
+`"300"` into `"100300"`.
+
+⚠ **And the assertion that matters most**: an opportunity's phase reaching its
+card. `project_id` is NULL on that row, and a `phaseLookup` keyed on it alone
+would have dropped the entire opportunity half of the pipeline, silently, on the
+deals being worked hardest.
+
+**`PowerRamp` could not be screenshotted** — it calls `useRouter`, which throws
+outside a Next request — so its populated table, the one place the
+increment/cumulative distinction is actually *shown* to the person typing, would
+have shipped rendered by nobody. Mounted `AppRouterContext` by hand in the verify
+script instead; it asserts the `100 MW → 400 MW` cumulative readout, the
+per-phase accessible names, and that a seventh phase is refused in words rather
+than at the API.
+
+### ⚠ THE SCREENSHOT HARNESS COULD ONLY SEE THE TOP OF A PAGE
+
+`scripts/ui/shoot.mjs` captures the viewport, and a record page here is several
+screens long — so anything added below the executive brief is unscreenshotable
+and ships unseen. That is the same failure its own header describes one level up:
+*a harness that can only render the happy path confirms what you already
+believe*. Added `BW_SHOOT_SCROLL_TO`, which takes a CSS selector **or** heading
+text (text, because that is what a new panel reliably has and a selector on a
+utility-class component is a string that rots) and reports a miss rather than
+skipping the shot. It is what caught the em dash above.
+
+### MEASUREMENTS
+
+- `megawatt|capacity_mw` across `src/` before this change: **5 hits, 0 columns** —
+  one of them the Ask Bar advertising the question.
+- Richard's example: 100 + 300 = **400**, and the cumulative misreading gives 300.
+  The only reason the rule is testable.
+- Constraints exercised live: **4 of 4** refuse what they should.
+- `power.test.ts` **19** assertions; `children.test.ts` **14** (one new, planted
+  and proven); `verify-power-render.tsx` **108**. Suite **996 → 999**.
+- Lint unchanged by this work (my files produce zero findings).
+- `BW_DIST_DIR=.next-verify npm run build` exit **0**, `.next` untouched.
+
+### ⚠ NOT DEPLOYED BY THIS SESSION — THE WORKING TREE IS NOT MINE ALONE
+
+A second Claude session is mid-workstream in this same repo on a
+`project_stage` → `deal_stage` rename, ~58 files, uncommitted and being edited
+during this session (files touched five minutes before it started). The deploy
+runbook **builds the working tree**, and `KeepAlive: true` means the build IS the
+deploy — so shipping this feature would ship their in-progress rename with it,
+which is precisely what CLAUDE.md's *"never run `npm run build` against a working
+tree you are not willing to ship"* exists to prevent. Fourteen of the files this
+feature touches are files they are also editing, so a filtered-patch split would
+produce a commit that does not compile on its own.
+
+`src/types/database.ts` was regenerated with `-- --force` (it refuses while
+dirty); their 8 `deal_stage` lines all survive — **0 removed**, verified — and
+only the `power_phases` types were added.
+
+Handed the deploy decision to Richard with the peer session asked directly
+whether its tree is shippable.
+
 **Done 2026-10-30 (the checklist first — and the screenshot harness that had not parsed since yesterday):**
 
 Richard: *"The checklist is a really important part of each project. I would
